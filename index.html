@@ -22,7 +22,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">FX(売上)・FY(単価)指標 ＆ データ同期中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">店舗累計(CP+CQ分母) ＆ 各列精密計算中...</p>
     </div>
 
     <!-- Header -->
@@ -45,7 +45,7 @@
                 <div class="text-right hidden sm:block">
                     <p class="text-xs text-slate-400">連携ステータス</p>
                     <p class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> FX(売上) FY(単価) 完全適合連動中
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 店舗特定列精密計算LIVE連動中
                     </p>
                 </div>
             </div>
@@ -183,7 +183,7 @@
         };
 
         let rawPersonalData = [];
-        let storeTabMetricsMap = {}; // FX列=売上金額, FY列=総販単価を正しく格納
+        let storeTabMetricsMap = {}; // 店舗別累計タブの指定列（CP, CQ, KU, KV, GB, MD, LN, LU）格納
         let storeTargetMap = {};
         let storeTotalSalesMap = {};
         let companyGlobalItemAvg = [0, 0, 0, 0, 0, 0];
@@ -194,6 +194,16 @@
         };
 
         const itemLabels = ['ﾌｨﾙﾑ購入率', 'ｺｰﾃｨﾝｸﾞ購入率', 'ｽﾄﾚｰｼﾞ購入率', 'PhotoCube購入率', 'GaN購入率', 'GLIDiC購入率'];
+
+        // アルファベット列名をインデックス（0始まり）に変換する関数
+        function col2idx(colStr) {
+            let idx = 0;
+            const str = colStr.toUpperCase();
+            for (let i = 0; i < str.length; i++) {
+                idx = idx * 26 + (str.charCodeAt(i) - 64);
+            }
+            return idx - 1;
+        }
 
         let radarChart, barChart;
 
@@ -250,31 +260,58 @@
                     }
                 }
 
-                // 2. 店舗別累計タブ解析（FX列＝売上金額, FY列＝総販単価）
+                // 2. 店舗別累計タブ解析（【社外秘】01_SB_月間累計）
+                // ご指定の列: CP, CQ (分母) / KU, KV, GB, MD, LN, LU (分子)
                 const storeLines = textStore.split(/\r?\n/).filter(l => l.trim() !== '');
                 storeTabMetricsMap = {};
 
-                let idxStoreName = 2; // C列付近
-                let idxFX = 179; // FX列 (売上金額)
-                let idxFY = 180; // FY列 (総販単価)
+                const idxCP = col2idx('CP'); // 93
+                const idxCQ = col2idx('CQ'); // 94
+                const idxKU = col2idx('KU'); // 306 (フィルム)
+                const idxKV = col2idx('KV'); // 307 (コーティング)
+                const idxGB = col2idx('GB'); // 183 (ストレージ)
+                const idxMD = col2idx('MD'); // 341 (PhotoCube)
+                const idxLN = col2idx('LN'); // 325 (GaN)
+                const idxLU = col2idx('LU'); // 332 (GLIDiC)
+                const idxFX = col2idx('FX'); // 179 (売上)
+                const idxFY = col2idx('FY'); // 180 (単価)
 
-                if (storeLines.length >= 3) {
-                    const headerRow = parseCSVLine(storeLines[2]);
-                    headerRow.forEach((col, cIdx) => {
-                        const cell = col.replace(/\s+/g, '');
-                        if (cell.includes('店舗名') || cell.includes('部門名')) idxStoreName = cIdx;
-                        if (cell.includes('FX') || cell.includes('売上金額')) idxFX = cIdx;
-                        if (cell.includes('FY') || cell.includes('総販単価') || cell.includes('単価')) idxFY = cIdx;
-                    });
-                }
+                let idxStoreName = 2; // C列付近（店舗名）
 
-                for (let i = 3; i < storeLines.length; i++) {
+                for (let i = 2; i < storeLines.length; i++) { // 3行目以降
                     const row = parseCSVLine(storeLines[i]);
-                    const stName = row[idxStoreName] ? row[idxStoreName].trim() : (row[1] || row[0] || '');
-                    if (stName && !stName.includes('店舗名')) {
-                        const fxSales = parseNum(row[idxFX] || row[179] || '0'); // 売上金額
-                        const fyPrice = parseNum(row[idxFY] || row[180] || '0'); // 総販単価
-                        storeTabMetricsMap[stName] = { sales: fxSales, price: fyPrice };
+                    if (row.length > 5) {
+                        const stName = row[idxStoreName] ? row[idxStoreName].trim() : (row[1] || row[0] || '');
+                        
+                        if (stName && !stName.includes('店舗名') && !stName.includes('部門名')) {
+                            const cp = parseNum(row[idxCP]);
+                            const cq = parseNum(row[idxCQ]);
+                            const denom = cp + cq; // 分母（総販数）
+
+                            const numKU = parseNum(row[idxKU]);
+                            const numKV = parseNum(row[idxKV]);
+                            const numGB = parseNum(row[idxGB]);
+                            const numMD = parseNum(row[idxMD]);
+                            const numLN = parseNum(row[idxLN]);
+                            const numLU = parseNum(row[idxLU]);
+
+                            // 分母が存在する場合、各商材の％を算出
+                            const rates = [
+                                denom > 0 ? Math.round((numKU / denom) * 1000) / 10 : 0,
+                                denom > 0 ? Math.round((numKV / denom) * 1000) / 10 : 0,
+                                denom > 0 ? Math.round((numGB / denom) * 1000) / 10 : 0,
+                                denom > 0 ? Math.round((numMD / denom) * 1000) / 10 : 0,
+                                denom > 0 ? Math.round((numLN / denom) * 1000) / 10 : 0,
+                                denom > 0 ? Math.round((numLU / denom) * 1000) / 10 : 0
+                            ];
+
+                            const salesVal = parseNum(row[idxFX]);
+                            const priceVal = parseNum(row[idxFY]);
+
+                            storeTabMetricsMap[stName] = {
+                                denom, rates, sales: salesVal, price: priceVal
+                            };
+                        }
                     }
                 }
 
@@ -520,7 +557,6 @@
                 container.innerHTML += cardHtml;
             }
 
-            // 店舗選択時は店舗別累計タブ(FX列=売上, FY列=単価)の正式な数値を表示
             let totalSales = sorted.reduce((acc, cur) => acc + cur.sales, 0);
             let avgPrice = sorted.length ? Math.round(sorted.reduce((acc, cur) => acc + cur.price, 0) / sorted.length) : 0;
 
@@ -563,14 +599,21 @@
 
             } else if (selectedStore !== 'ALL') {
                 subjectName = selectedStore;
-                badge.innerText = "🏪 店舗分析モード";
+                badge.innerText = "🏪 店舗精密切算モード (CP+CQ分母)";
                 radarSub.innerText = `選択店舗: ${selectedStore}`;
-                barSub.innerText = `${selectedStore} の商材別購入率 (%)`;
+                barSub.innerText = `${selectedStore} のSELECTION販売率 (%)`;
 
-                // 店舗選択時も購入率（%）はクルー平均で正確に算出して比較
-                const currentAvgScores = [0,0,0,0,0,0];
-                activeList.forEach(item => { for(let k=0; k<6; k++) currentAvgScores[k] += (item.itemScores[k]||0); });
-                currentScores = currentAvgScores.map(v => activeList.length ? Math.round((v / activeList.length) * 10) / 10 : 0);
+                // 店舗選択時：店舗累計タブから（CP+CQ分母 / 各列分子）の精密％を取得
+                const storeMetrics = storeTabMetricsMap[selectedStore];
+
+                if (storeMetrics && storeMetrics.rates && storeMetrics.denom > 0) {
+                    currentScores = storeMetrics.rates;
+                } else {
+                    // 予備補正：クルー平均
+                    const currentAvgScores = [0,0,0,0,0,0];
+                    activeList.forEach(item => { for(let k=0; k<6; k++) currentAvgScores[k] += (item.itemScores[k]||0); });
+                    currentScores = currentAvgScores.map(v => activeList.length ? Math.round((v / activeList.length) * 10) / 10 : 0);
+                }
 
                 const sameAreaCrew = rawPersonalData.filter(d => d.area === activeList[0]?.area);
                 const storeGroupSales = {};
@@ -578,9 +621,15 @@
                 const topStoreName = Object.keys(storeGroupSales).sort((a,b) => storeGroupSales[b] - storeGroupSales[a])[0] || selectedStore;
                 const topStoreCrew = rawPersonalData.filter(d => d.store === topStoreName);
 
-                const topAvgScores = [0,0,0,0,0,0];
-                topStoreCrew.forEach(item => { for(let k=0; k<6; k++) topAvgScores[k] += (item.itemScores[k]||0); });
-                targetScores = topAvgScores.map(v => topStoreCrew.length ? Math.round((v / topStoreCrew.length) * 10) / 10 : 0);
+                const topMetrics = storeTabMetricsMap[topStoreName];
+                if (topMetrics && topMetrics.rates && topMetrics.denom > 0) {
+                    targetScores = topMetrics.rates;
+                } else {
+                    const topAvgScores = [0,0,0,0,0,0];
+                    topStoreCrew.forEach(item => { for(let k=0; k<6; k++) topAvgScores[k] += (item.itemScores[k]||0); });
+                    targetScores = topAvgScores.map(v => topStoreCrew.length ? Math.round((v / topStoreCrew.length) * 10) / 10 : 0);
+                }
+                
                 targetLabelName = `🏆 G1位 (${topStoreName})`;
 
             } else {
@@ -638,9 +687,9 @@
             const worstDiffStr = minDiff >= 0 ? `+${Math.round(minDiff * 10) / 10}%` : `${Math.round(minDiff * 10) / 10}%`;
 
             let adviceText = `
-                <p><strong>【${subjectName} のSELECTION分析】</strong></p>
-                <p>🌟 <strong>強み商材</strong>：<span class="text-amber-300 font-bold">${bestItem} (${bestVal}%)</span> が比較対象に対して <span class="text-emerald-400 font-bold">${bestDiffStr}</span> と非常に高い実績です！この提案スタイルを強みとして維持しましょう。</p>
-                <p>🎯 <strong>注力ポイント</strong>：<span class="text-pink-300 font-bold">${worstItem} (${worstVal}%)</span> が比較に対して <span class="text-rose-400 font-bold">${worstDiffStr}</span> のギャップがあります。この商材のセット提案・お声がけを意識することで、アクセサリ単価のさらなる底上げが狙えます！</p>
+                <p><strong>【${subjectName} のSELECTION精密分析】</strong></p>
+                <p>🌟 <strong>強み商材</strong>：<span class="text-amber-300 font-bold">${bestItem} (${bestVal}%)</span> が比較対象に対して <span class="text-emerald-400 font-bold">${bestDiffStr}</span> と非常に高い販売率です！この提案アプローチを継続・横展開しましょう。</p>
+                <p>🎯 <strong>注力ポイント</strong>：<span class="text-pink-300 font-bold">${worstItem} (${worstVal}%)</span> が比較に対して <span class="text-rose-400 font-bold">${worstDiffStr}</span> のギャップがあります。この商材のセット提案・お声がけを徹底することで全体率の底上げが期待できます！</p>
             `;
 
             containerEl.innerHTML = adviceText;
