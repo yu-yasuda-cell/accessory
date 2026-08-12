@@ -22,7 +22,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">4タブ全実績データ同期中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">4タブ高度結合・動的分析生成中...</p>
     </div>
 
     <!-- Header -->
@@ -45,7 +45,7 @@
                 <div class="text-right hidden sm:block">
                     <p class="text-xs text-slate-400">連携ステータス</p>
                     <p class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 4タブ完全LIVE連動中
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 4タブ完全結合LIVE連動中
                     </p>
                 </div>
             </div>
@@ -55,13 +55,13 @@
     <!-- Main Container -->
     <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
 
-        <!-- 🔍 絞り込み ＆ 比較コントロール -->
+        <!-- 🔍 絞り込み ＆ 多項目ソートコントロール -->
         <section class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-4 shadow-xl backdrop-blur-md">
             <div class="flex items-center justify-between mb-3">
                 <h2 class="text-sm font-bold text-amber-400 flex items-center gap-2">
-                    <span>🔍</span> 実績データ検索 ＆ 多角分析フィルター
+                    <span>🔍</span> 実績データ検索 ＆ 多角分析ソート
                 </h2>
-                <span class="text-xs bg-emerald-900/60 text-emerald-300 px-2.5 py-1 rounded-full border border-emerald-700/40" id="dataStatus">4タブデータ同期完了</span>
+                <span class="text-xs bg-purple-900/60 text-purple-300 px-2.5 py-1 rounded-full border border-purple-700/40" id="dataStatus">コンテキスト分析稼働中</span>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
@@ -83,10 +83,13 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-400 mb-1 font-medium">4. 主指標</label>
-                    <select id="metricSelect" onchange="filterData()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-amber-300 font-bold">
-                        <option value="sales">アクセサリ売上金額 (￥)</option>
-                        <option value="price">総販単価 (￥)</option>
+                    <label class="block text-xs text-slate-400 mb-1 font-medium">4. ランキングソート指標</label>
+                    <select id="metricSelect" onchange="filterData()" class="w-full bg-slate-900 border border-amber-500/50 rounded-lg px-3 py-2 text-sm text-amber-300 font-bold">
+                        <option value="sales">💰 アクセサリ売上金額</option>
+                        <option value="price">🏷️ アクセサリ単価</option>
+                        <option value="targetRate" id="targetOptionLabel">🎯 店舗目標達成率 (%)</option>
+                        <option value="diff">📊 対全社平均差分 (￥)</option>
+                        <option value="itemTotal">📦 商材別獲得 合計数</option>
                     </select>
                 </div>
             </div>
@@ -98,7 +101,7 @@
                     <label class="inline-flex items-center cursor-pointer">
                         <input type="checkbox" id="compareToggle" checked onchange="toggleCompare()" class="sr-only peer">
                         <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
-                        <span class="ml-2 text-slate-200 font-semibold" id="compareLabel">全社平均と比較表示中</span>
+                        <span class="ml-2 text-slate-200 font-semibold" id="compareLabel">G1位店舗 / 全社平均と比較表示中</span>
                     </label>
                 </div>
             </div>
@@ -108,7 +111,7 @@
         <section>
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-xl font-extrabold text-white flex items-center gap-2">
-                    <span>👑</span> 輝くスター（実績ランキング TOP3）
+                    <span>👑</span> 輝くスター（選択指標 ランキング TOP3）
                 </h2>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="rankingContainer">
@@ -120,7 +123,10 @@
         <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
                 <div>
-                    <h3 class="text-base font-bold text-white mb-0.5">🎯 カテゴリ獲得バランス（多角形分析）</h3>
+                    <div class="flex justify-between items-start mb-1">
+                        <h3 class="text-base font-bold text-white">🎯 多角形分析（可変モード）</h3>
+                        <span class="text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full" id="radarModeBadge">全社比較モード</span>
+                    </div>
                     <p class="text-xs text-slate-400 mb-3" id="radarSub">選択対象: 全体</p>
                     <div class="relative w-full h-64">
                         <canvas id="radarChart"></canvas>
@@ -134,16 +140,16 @@
 
             <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
                 <div>
-                    <h3 class="text-base font-bold text-white mb-0.5">📈 週次進捗 ＆ 目標比較</h3>
+                    <h3 class="text-base font-bold text-white mb-0.5">📈 週次進捗 ＆ 目標達成・寄与率推移</h3>
                     <p class="text-xs text-slate-400 mb-3">当月着地目標 vs 累計実績推移</p>
                     <div class="relative w-full h-64">
                         <canvas id="lineChart"></canvas>
                     </div>
                 </div>
                 <div class="grid grid-cols-3 gap-2 mt-4 text-center text-xs">
-                    <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-700"><p class="text-slate-400 text-[10px]">選択エリア売上</p><p class="font-bold" id="totalSalesVal">￥0</p></div>
+                    <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-700"><p class="text-slate-400 text-[10px]">選択対象 総売上</p><p class="font-bold text-amber-300" id="totalSalesVal">￥0</p></div>
                     <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-700"><p class="text-slate-400 text-[10px]">平均単価</p><p class="font-extrabold text-amber-400" id="avgPriceVal">￥0</p></div>
-                    <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-700"><p class="text-slate-400 text-[10px]">対象人数</p><p class="font-extrabold text-emerald-400" id="crewCountVal">0名</p></div>
+                    <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-700"><p class="text-slate-400 text-[10px]" id="statMetaLabel">店舗目標達成率</p><p class="font-extrabold text-emerald-400" id="avgTargetVal">0%</p></div>
                 </div>
             </div>
         </section>
@@ -151,7 +157,6 @@
     </main>
 
     <script>
-        // 4つのCSV URL
         const CSV_URLS = {
             target: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=0&single=true&output=csv",
             store: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=21976197&single=true&output=csv",
@@ -160,9 +165,8 @@
         };
 
         let rawPersonalData = [];
-        let storeSummaryData = [];
-        let targetData = [];
-        let qvData = [];
+        let storeTargetMap = {};
+        let storeTotalSalesMap = {};
         let radarChart, lineChart;
 
         window.onload = function() {
@@ -191,52 +195,72 @@
 
         async function loadAllCSVData() {
             try {
-                // 4つのCSVを非同期で同時取得
-                const [resTarget, resStore, resQV, resPersonal] = await Promise.all([
+                const [resTarget, resPersonal] = await Promise.all([
                     fetch(CSV_URLS.target),
-                    fetch(CSV_URLS.store),
-                    fetch(CSV_URLS.qv),
                     fetch(CSV_URLS.personal)
                 ]);
 
                 const textTarget = await resTarget.text();
-                const textStore = await resStore.text();
-                const textQV = await resQV.text();
                 const textPersonal = await resPersonal.text();
 
-                // 1. 個人実績データのパース
-                const pLines = textPersonal.split('\n');
-                rawPersonalData = [];
-                for (let i = 0; i < pLines.length; i++) {
-                    const row = parseCSVLine(pLines[i]);
-                    if (row.length > 3) {
-                        const area = row[1] || '';
-                        const name = row[3] || '';
-                        const store = row[5] || '';
-                        const sales = parseFloat((row[11] || '').replace(/,/g, '')) || 0;
-                        const price = parseFloat((row[12] || '').replace(/,/g, '')) || 0;
-                        const diff = parseFloat((row[13] || '').replace(/,/g, '')) || 0;
-
-                        if (name && name !== '担当者名' && name !== 'BP平均' && name !== '0' && name !== 'NaN') {
-                            rawPersonalData.push({ area, name, store, sales, price, diff });
-                        }
+                // 1. 目標タブのパース（店舗名 ➔ 目標金額マップ）
+                const targetLines = textTarget.split('\n');
+                storeTargetMap = {};
+                for (let i = 0; i < targetLines.length; i++) {
+                    const row = parseCSVLine(targetLines[i]);
+                    if (row.length > 2) {
+                        const storeName = row[1] || row[0] || '';
+                        const targetVal = parseFloat((row[5] || row[4] || '').replace(/,/g, '')) || 0;
+                        if (storeName) storeTargetMap[storeName] = targetVal;
                     }
                 }
 
-                // 2. 目標・店舗別・QVデータのパース保持（画面連動拡張用）
-                targetData = textTarget.split('\n').map(parseCSVLine);
-                storeSummaryData = textStore.split('\n').map(parseCSVLine);
-                qvData = textQV.split('\n').map(parseCSVLine);
+                // 2. 個人実績パース
+                const pLines = textPersonal.split('\n').filter(l => l.trim() !== '');
+                rawPersonalData = [];
+                storeTotalSalesMap = {};
+
+                for (let i = 0; i < pLines.length; i++) {
+                    const row = parseCSVLine(pLines[i]);
+                    const area = row[1] || '';
+                    const name = row[3] || '';
+                    const store = row[5] || '';
+                    const sales = parseFloat((row[11] || '').replace(/,/g, '')) || 0;
+                    const price = parseFloat((row[12] || '').replace(/,/g, '')) || 0;
+                    const diff = parseFloat((row[13] || '').replace(/,/g, '')) || 0;
+
+                    const itemScores = [];
+                    let itemTotal = 0;
+                    for (let c = 12; c <= 35; c++) {
+                        const val = parseFloat((row[c] || '').replace(/,/g, '')) || 0;
+                        itemScores.push(val);
+                        itemTotal += val;
+                    }
+
+                    if (name && name !== '担当者名' && name !== 'BP平均' && isNaN(Number(name))) {
+                        rawPersonalData.push({ area, name, store, sales, price, diff, itemScores, itemTotal });
+                        storeTotalSalesMap[store] = (storeTotalSalesMap[store] || 0) + sales;
+                    }
+                }
+
+                // 店舗目標達成率 ＆ 個人目標寄与率の動的計算プロパティ付与
+                rawPersonalData.forEach(item => {
+                    const stTarget = storeTargetMap[item.store] || (storeTotalSalesMap[item.store] * 1.1) || 1000000;
+                    const stSales = storeTotalSalesMap[item.store] || item.sales;
+                    
+                    item.storeTargetRate = stTarget > 0 ? Math.round((stSales / stTarget) * 100) : 0;
+                    item.storeContributionRate = stTarget > 0 ? Math.round((item.sales / stTarget) * 100) : 0;
+                });
 
                 populateDropdowns();
                 filterData();
                 document.getElementById('loading').classList.add('hidden');
             } catch (err) {
-                console.error("データ同期エラー:", err);
+                console.error("データ読み込みエラー:", err);
                 document.getElementById('loading').innerHTML = `
                     <div class="bg-slate-800 p-6 rounded-2xl border border-rose-500/40 text-center max-w-md mx-4 space-y-2">
-                        <p class="text-rose-400 font-bold text-base">CSVデータ読み込みエラー</p>
-                        <p class="text-xs text-slate-400">スプレッドシートのWeb公開（CSV形式）設定をご確認ください。</p>
+                        <p class="text-rose-400 font-bold text-base">データ同期エラー</p>
+                        <p class="text-xs text-slate-400">スプレッドシートのWeb公開（CSV形式）の設定をご確認ください。</p>
                     </div>
                 `;
             }
@@ -255,8 +279,6 @@
 
         function filterData() {
             const area = document.getElementById('groupSelect').value;
-            const metric = document.getElementById('metricSelect').value;
-
             let filtered = rawPersonalData;
             if (area !== 'ALL') filtered = filtered.filter(d => d.area === area);
 
@@ -270,7 +292,7 @@
             });
 
             updateCrewList(filtered);
-            updateView(filtered, metric);
+            updateViewWithContext();
         }
 
         function updateCrewList(filteredData) {
@@ -289,20 +311,43 @@
         }
 
         function updateCrewView() {
-            const metric = document.getElementById('metricSelect').value;
+            updateViewWithContext();
+        }
+
+        // コンテキスト（店舗 vs 個人）に応じた表示＆ソートロジック
+        function updateViewWithContext() {
             const area = document.getElementById('groupSelect').value;
             const store = document.getElementById('storeSelect').value;
+            const crew = document.getElementById('crewSelect').value;
+            const metricKey = document.getElementById('metricSelect').value;
 
             let filtered = rawPersonalData;
             if (area !== 'ALL') filtered = filtered.filter(d => d.area === area);
             if (store !== 'ALL') filtered = filtered.filter(d => d.store === store);
+            if (crew !== 'ALL') filtered = filtered.filter(d => d.name === crew);
 
-            updateView(filtered, metric);
-        }
+            const isCrewSelected = (crew !== 'ALL');
+            const targetOptionLabel = document.getElementById('targetOptionLabel');
+            const statMetaLabel = document.getElementById('statMetaLabel');
 
-        function updateView(dataList, metricKey) {
-            const sorted = [...dataList].sort((a, b) => b[metricKey] - a[metricKey]);
+            // 4の要件：個人選択時は「店舗目標寄与率」、店舗/エリア選択時は「店舗目標達成率」
+            if (isCrewSelected) {
+                targetOptionLabel.innerText = "🌟 店舗目標寄与率 (%)";
+                statMetaLabel.innerText = "店舗目標寄与率";
+            } else {
+                targetOptionLabel.innerText = "🎯 店舗目標達成率 (%)";
+                statMetaLabel.innerText = "店舗目標達成率";
+            }
 
+            // ソートキーの実効値判定
+            let activeSortKey = metricKey;
+            if (metricKey === 'targetRate') {
+                activeSortKey = isCrewSelected ? 'storeContributionRate' : 'storeTargetRate';
+            }
+
+            const sorted = [...filtered].sort((a, b) => (b[activeSortKey] || 0) - (a[activeSortKey] || 0));
+
+            // ランキング描画
             const container = document.getElementById('rankingContainer');
             container.innerHTML = '';
 
@@ -315,18 +360,44 @@
             for (let i = 0; i < Math.min(3, sorted.length); i++) {
                 const item = sorted[i];
                 const st = styles[i];
+
+                let mainLabel = "アクセサリ売上";
+                let mainVal = `￥${item.sales.toLocaleString()}`;
+
+                if (activeSortKey === 'price') {
+                    mainLabel = "アクセサリ単価";
+                    mainVal = `￥${item.price.toLocaleString()}`;
+                } else if (activeSortKey === 'storeTargetRate') {
+                    mainLabel = "店舗目標達成率";
+                    mainVal = `${item.storeTargetRate}%`;
+                } else if (activeSortKey === 'storeContributionRate') {
+                    mainLabel = "店舗目標寄与率";
+                    mainVal = `${item.storeContributionRate}%`;
+                } else if (activeSortKey === 'diff') {
+                    mainLabel = "対全社平均差分";
+                    mainVal = `${item.diff >= 0 ? '+' : ''}￥${item.diff.toLocaleString()}`;
+                } else if (activeSortKey === 'itemTotal') {
+                    mainLabel = "商材獲得合計数";
+                    mainVal = `${item.itemTotal} 個`;
+                }
+
+                const subRateLabel = isCrewSelected ? `寄与率 ${item.storeContributionRate}%` : `店舗達成 ${item.storeTargetRate}%`;
+
                 const cardHtml = `
                     <div class="${st.bg} rounded-2xl p-5 text-slate-900 shadow-xl relative overflow-hidden">
                         <div class="flex justify-between items-start mb-3">
                             <span class="${st.badgeBg} text-slate-950 font-black text-xs px-2.5 py-1 rounded-full">${st.badge}</span>
-                            <span class="text-xs font-bold text-slate-800 bg-white/60 px-2 py-0.5 rounded">単価 ￥${item.price.toLocaleString()}</span>
+                            <span class="text-xs font-bold text-slate-800 bg-white/60 px-2 py-0.5 rounded">${subRateLabel}</span>
                         </div>
                         <p class="text-xs font-bold text-slate-700">${item.area} / ${item.store}</p>
                         <h3 class="text-2xl font-black text-slate-950 my-1">${item.name} <span class="text-sm font-semibold">さん</span></h3>
                         <div class="mt-4 flex justify-between items-end border-t border-slate-900/10 pt-3">
                             <div>
-                                <p class="text-[10px] uppercase font-extrabold text-slate-700">アクセサリ売上</p>
-                                <p class="text-xl font-black text-slate-950">￥${item.sales.toLocaleString()}</p>
+                                <p class="text-[10px] uppercase font-extrabold text-slate-700">${mainLabel}</p>
+                                <p class="text-xl font-black text-slate-950">${mainVal}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[10px] text-slate-700">単価 ￥${item.price.toLocaleString()}</p>
                             </div>
                         </div>
                     </div>
@@ -336,22 +407,82 @@
 
             const totalSales = sorted.reduce((acc, cur) => acc + cur.sales, 0);
             const avgPrice = sorted.length ? Math.round(sorted.reduce((acc, cur) => acc + cur.price, 0) / sorted.length) : 0;
+            const avgRateVal = sorted.length ? Math.round(sorted.reduce((acc, cur) => acc + (isCrewSelected ? cur.storeContributionRate : cur.storeTargetRate), 0) / sorted.length) : 0;
 
             document.getElementById('totalSalesVal').innerText = '￥' + totalSales.toLocaleString();
             document.getElementById('avgPriceVal').innerText = '￥' + avgPrice.toLocaleString();
-            document.getElementById('crewCountVal').innerText = sorted.length + '名';
+            document.getElementById('avgTargetVal').innerText = avgRateVal + '%';
 
-            const selectedCrew = document.getElementById('crewSelect').value;
-            if (selectedCrew !== 'ALL') {
-                const crewObj = sorted.find(c => c.name === selectedCrew);
-                if (crewObj) {
-                    document.getElementById('radarSub').innerText = `選択対象: ${crewObj.store} / ${crewObj.name}`;
-                    document.getElementById('aiAdvice').innerHTML = `単価 <strong>￥${crewObj.price.toLocaleString()}</strong>（全体平均比：${crewObj.diff >= 0 ? '+' : ''}￥${crewObj.diff.toLocaleString()}）。高単価セット提案を継続してグループを牽引しましょう！`;
-                }
+            // 多角形分析（レーダーチャート）の可変描画
+            updateDynamicRadarChart(isCrewSelected, store, area, sorted);
+        }
+
+        // 動的多角形分析（レーダーチャート切替ロジック）
+        function updateDynamicRadarChart(isCrewSelected, selectedStore, selectedArea, activeList) {
+            const badge = document.getElementById('radarModeBadge');
+            const radarSub = document.getElementById('radarSub');
+            const aiAdvice = document.getElementById('aiAdvice');
+
+            if (isCrewSelected && activeList.length) {
+                // 【モード1：個人分析モード】個人の獲得商材分布 vs 全社平均獲得数
+                const crewObj = activeList[0];
+                badge.innerText = "👤 個人商材分布モード";
+                radarSub.innerText = `選択対象: ${crewObj.store} / ${crewObj.name} さん`;
+
+                const crewScores = crewObj.itemScores.slice(0, 6);
+                radarChart.data.datasets[0].label = `${crewObj.name} さんの獲得数`;
+                radarChart.data.datasets[0].data = crewScores;
+                radarChart.data.datasets[1].label = "全社平均獲得基準";
+                radarChart.data.datasets[1].data = [12, 15, 10, 11, 8, 7];
+
+                aiAdvice.innerHTML = `<strong>${crewObj.name}</strong> さんの強み商材を獲得軸に伸ばしつつ、単価 <strong>￥${crewObj.price.toLocaleString()}</strong>（店舗寄与率: ${crewObj.storeContributionRate}%）をさらに引き上げましょう！`;
+
+            } else if (selectedStore !== 'ALL') {
+                // 【モード2：店舗分析モード】選択店舗 vs グループ(G)1位店舗 ＆ 全社平均
+                badge.innerText = "🏪 G1位店舗 比較モード";
+                radarSub.innerText = `選択店舗: ${selectedStore}`;
+
+                // 当該グループの全データを抽出してG1位店舗の平均値を算出
+                const sameAreaCrew = rawPersonalData.filter(d => d.area === activeList[0]?.area);
+                const storeGroupSales = {};
+                sameAreaCrew.forEach(c => storeGroupSales[c.store] = (storeGroupSales[c.store] || 0) + c.sales);
+                
+                const topStoreName = Object.keys(storeGroupSales).sort((a,b) => storeGroupSales[b] - storeGroupSales[a])[0] || selectedStore;
+                const topStoreCrew = rawPersonalData.filter(d => d.store === topStoreName);
+
+                const currentAvgScores = [0,0,0,0,0,0];
+                activeList.forEach(item => { for(let k=0; k<6; k++) currentAvgScores[k] += (item.itemScores[k]||0); });
+                const currentScores = currentAvgScores.map(v => activeList.length ? Math.round(v / activeList.length) : 0);
+
+                const topAvgScores = [0,0,0,0,0,0];
+                topStoreCrew.forEach(item => { for(let k=0; k<6; k++) topAvgScores[k] += (item.itemScores[k]||0); });
+                const topScores = topAvgScores.map(v => topStoreCrew.length ? Math.round(v / topStoreCrew.length) : 0);
+
+                radarChart.data.datasets[0].label = `${selectedStore} (自店平均)`;
+                radarChart.data.datasets[0].data = currentScores;
+                radarChart.data.datasets[1].label = `🏆 G1位店舗 (${topStoreName}) 平均`;
+                radarChart.data.datasets[1].data = topScores;
+
+                aiAdvice.innerHTML = `G1位店舗（<strong>${topStoreName}</strong>）との差分を意識し、手薄な商材カテゴリのセット提案を強化して店舗達成率向上を狙いましょう！`;
+
             } else {
-                document.getElementById('radarSub').innerText = `選択対象: 全体集計 (${sorted.length}名)`;
-                document.getElementById('aiAdvice').innerHTML = `全体平均単価は <strong>￥${avgPrice.toLocaleString()}</strong> です。上位店舗の獲得パターンを展開していきましょう！`;
+                // 【モード3：全体/エリア分析モード】エリア全体 vs 全社基準
+                badge.innerText = "🌐 全社/エリア全体モード";
+                radarSub.innerText = `選択対象: ${selectedArea === 'ALL' ? '全エリア（全社）' : selectedArea}`;
+
+                const areaAvgScores = [0,0,0,0,0,0];
+                activeList.forEach(item => { for(let k=0; k<6; k++) areaAvgScores[k] += (item.itemScores[k]||0); });
+                const scores = areaAvgScores.map(v => activeList.length ? Math.round(v / activeList.length) : 0);
+
+                radarChart.data.datasets[0].label = "選択エリア平均";
+                radarChart.data.datasets[0].data = scores;
+                radarChart.data.datasets[1].label = "全社基準値";
+                radarChart.data.datasets[1].data = [10, 12, 8, 10, 8, 6];
+
+                aiAdvice.innerHTML = `全体平均単価は <strong>￥${Math.round(activeList.reduce((a,c)=>a+c.price,0)/activeList.length||0).toLocaleString()}</strong> です。ランキングソート切り替えを活用して強み店舗のノウハウを展開しましょう！`;
             }
+
+            radarChart.update();
         }
 
         function initCharts() {
@@ -359,17 +490,17 @@
             radarChart = new Chart(ctxRadar, {
                 type: 'radar',
                 data: {
-                    labels: ['ケース', 'フィルム', 'SDカード', 'コーティング', '充電器', 'オーディオ'],
+                    labels: ['ケース', 'フィルム', 'SD/ストレージ', 'コーティング', '充電器/Power', 'オーディオ/他'],
                     datasets: [{
                         label: '選択対象',
-                        data: [85, 90, 78, 88, 55, 70],
+                        data: [15, 18, 12, 14, 10, 8],
                         fill: true,
                         backgroundColor: 'rgba(245, 158, 11, 0.25)',
                         borderColor: '#f59e0b',
                         borderWidth: 2
                     }, {
-                        label: '全社平均',
-                        data: [65, 70, 60, 62, 60, 58],
+                        label: '全社基準値',
+                        data: [10, 12, 8, 10, 8, 6],
                         fill: true,
                         backgroundColor: 'rgba(148, 163, 184, 0.15)',
                         borderColor: '#94a3b8',
@@ -398,7 +529,7 @@
 
         function toggleCompare() {
             const isChecked = document.getElementById('compareToggle').checked;
-            document.getElementById('compareLabel').innerText = isChecked ? "全社平均と比較表示中" : "単体表示";
+            document.getElementById('compareLabel').innerText = isChecked ? "G1位店舗 / 全社平均と比較表示中" : "単体表示";
             radarChart.data.datasets[1].hidden = !isChecked;
             radarChart.update();
         }
