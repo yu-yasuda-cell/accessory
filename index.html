@@ -19,10 +19,24 @@
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen">
 
-    <!-- Loading Indicator -->
-    <div id="loading" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
-        <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">スプレッドシート実データ同期中...</p>
+    <!-- 社内アカウント ログインモーダル -->
+    <div id="loginOverlay" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[200] flex flex-col items-center justify-center p-4">
+        <div class="bg-slate-800 border border-purple-500/30 rounded-3xl p-6 sm:p-8 max-w-md w-full text-center space-y-6 shadow-2xl">
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-pink-500 mx-auto flex items-center justify-center text-3xl shadow-lg">
+                ✨
+            </div>
+            <div>
+                <h2 class="text-2xl font-black text-white">アクセサリーマスター！</h2>
+                <p class="text-xs text-purple-300 font-bold mt-1">〜SELECTIONマスターへの道⚔️〜</p>
+            </div>
+            <div class="bg-purple-950/50 border border-purple-800/40 rounded-xl p-4 text-xs text-purple-200 text-left space-y-1">
+                <p class="font-bold text-amber-300">🔒 社内専用セキュリティ保護</p>
+                <p>スプレッドシートデータ連携のため、<strong>@bellpark.co.jp</strong> のアカウント認証が必要です。</p>
+            </div>
+            <button onclick="loginAndFetchData()" class="w-full bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-black py-3.5 px-6 rounded-xl text-sm shadow-lg transition duration-200 transform active:scale-95 flex items-center justify-center gap-2">
+                <span>🔑 社内アカウントでログインして開く</span>
+            </button>
+        </div>
     </div>
 
     <!-- Header -->
@@ -44,8 +58,8 @@
             <div class="flex items-center space-x-4">
                 <div class="text-right hidden sm:block">
                     <p class="text-xs text-slate-400">連携ステータス</p>
-                    <p class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> スプレッドシートLIVE連動中
+                    <p class="text-xs font-bold text-emerald-400 flex items-center gap-1" id="statusLabel">
+                        <span class="w-2 h-2 rounded-full bg-slate-500"></span> ログイン待機中
                     </p>
                 </div>
             </div>
@@ -61,7 +75,7 @@
                 <h2 class="text-sm font-bold text-amber-400 flex items-center gap-2">
                     <span>🔍</span> 実績データ検索 ＆ 多角分析フィルター
                 </h2>
-                <span class="text-xs bg-purple-900/60 text-purple-300 px-2.5 py-1 rounded-full border border-purple-700/40" id="dataStatus">データ同期完了</span>
+                <span class="text-xs bg-purple-900/60 text-purple-300 px-2.5 py-1 rounded-full border border-purple-700/40" id="dataStatus">認証待ち</span>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
@@ -157,28 +171,29 @@
 
         window.onload = function() {
             initCharts();
-            fetchDataViaJSONP();
         };
 
-        // JSONP方式で社内制限GASから安全にデータ取得
-        function fetchDataViaJSONP() {
-            const script = document.createElement('script');
-            script.src = `${GAS_URL}?callback=handleGASResponse`;
-            script.onerror = function() {
-                document.getElementById('loading').innerHTML = `
-                    <p class="text-rose-400 font-bold">データ読み込みエラーが発生しました。</p>
-                    <p class="text-xs text-slate-400">GASのアクセス権限をご確認ください。</p>
-                `;
-            };
-            document.body.appendChild(script);
+        function loginAndFetchData() {
+            // 社内ログイン認証ポップアップを開く
+            window.open(GAS_URL, 'gasAuthWindow', 'width=600,height=600');
+            
+            document.getElementById('statusLabel').innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span> 認証中...';
+            document.getElementById('loginOverlay').classList.add('hidden');
+
+            // 認証後にデータをロード
+            setTimeout(() => {
+                const script = document.createElement('script');
+                script.src = `${GAS_URL}?callback=handleGASResponse`;
+                document.body.appendChild(script);
+            }, 2000);
         }
 
-        // GASからのコールバック関数
         function handleGASResponse(data) {
             rawPersonalData = data.personal || [];
             populateDropdowns();
             filterData();
-            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('statusLabel').innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> スプレッドシートLIVE連動中';
+            document.getElementById('dataStatus').innerText = 'データ同期完了';
         }
 
         function populateDropdowns() {
