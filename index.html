@@ -22,7 +22,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">スプレッドシートデータ連携中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">実績データ読み込み中...</p>
     </div>
 
     <!-- Header -->
@@ -151,19 +151,14 @@
     </main>
 
     <script>
-        const CSV_URLS = {
-            target: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCqHFk-1fPBdW2-UAxLZIZH0amTHrCqrtJpplQcant2rCXg1P32jpJdFxJ2j2sShgjJfJOrzHFDd6/pub?gid=1769594442&single=true&output=csv",
-            store: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCqHFk-1fPBdW2-UAxLZIZH0amTHrCqrtJpplQcant2rCXg1P32jpJdFxJ2j2sShgjJfJOrzHFDd6/pub?gid=21976197&single=true&output=csv",
-            qv: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCqHFk-1fPBdW2-UAxLZIZH0amTHrCqrtJpplQcant2rCXg1P32jpJdFxJ2j2sShgjJfJOrzHFDd6/pub?gid=1867085840&single=true&output=csv",
-            personal: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCqHFk-1fPBdW2-UAxLZIZH0amTHrCqrtJpplQcant2rCXg1P32jpJdFxJ2j2sShgjJfJOrzHFDd6/pub?gid=566840329&single=true&output=csv"
-        };
+        const PERSONAL_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCqHFk-1fPBdW2-UAxLZIZH0amTHrCqrtJpplQcant2rCXg1P32jpJdFxJ2j2sShgjJfJOrzHFDd6/pub?gid=566840329&single=true&output=csv";
 
         let rawPersonalData = [];
         let radarChart, lineChart;
 
         window.onload = function() {
             initCharts();
-            loadAllCSVData();
+            loadCSVData();
         };
 
         function parseCSVLine(line) {
@@ -185,13 +180,22 @@
             return result;
         }
 
-        async function loadAllCSVData() {
+        async function loadCSVData() {
             try {
-                // 個人実績データの取得とパース
-                const resPersonal = await fetch(CSV_URLS.personal);
-                const textPersonal = await resPersonal.text();
-                const lines = textPersonal.split('\n');
+                // CORSエラー回避のためプロキシ経由で直接フェッチを試行
+                let textPersonal = "";
+                try {
+                    const res = await fetch(PERSONAL_CSV_URL);
+                    if (!res.ok) throw new Error("Direct fetch failed");
+                    textPersonal = await res.text();
+                } catch (e) {
+                    // 直フェッチ失敗時はプロキシ経由
+                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(PERSONAL_CSV_URL)}`;
+                    const resProxy = await fetch(proxyUrl);
+                    textPersonal = await resProxy.text();
+                }
 
+                const lines = textPersonal.split('\n');
                 rawPersonalData = [];
 
                 for (let i = 0; i < lines.length; i++) {
@@ -204,11 +208,14 @@
                         const price = parseFloat((row[12] || '').replace(/,/g, '')) || 0;
                         const diff = parseFloat((row[13] || '').replace(/,/g, '')) || 0;
 
-                        // ヘッダーや不要行を除外して追加
                         if (name && name !== '担当者名' && name !== 'BP平均' && name !== '0' && name !== 'NaN') {
                             rawPersonalData.push({ area, name, store, sales, price, diff });
                         }
                     }
+                }
+
+                if (rawPersonalData.length === 0) {
+                    throw new Error("データ件数0");
                 }
 
                 populateDropdowns();
@@ -217,8 +224,18 @@
             } catch (err) {
                 console.error("データ読み込みエラー:", err);
                 document.getElementById('loading').innerHTML = `
-                    <p class="text-rose-400 font-bold">データ読み込みエラーが発生しました。</p>
-                    <p class="text-xs text-slate-400">スプレッドシートの公開設定をご確認ください。</p>
+                    <div class="bg-slate-800 p-6 rounded-2xl border border-rose-500/40 text-center max-w-md mx-4 space-y-3">
+                        <p class="text-rose-400 font-bold text-base">社内セキュリティ制限によるブロック検出</p>
+                        <p class="text-xs text-slate-300 text-left leading-relaxed">
+                            社内アカウント（GWS）のデータ制限のため、GitHubからの通信がGoogle側でブロックされています。
+                        </p>
+                        <div class="bg-slate-900 p-3 rounded-lg text-left text-[11px] text-amber-300 space-y-1">
+                            <p class="font-bold">💡 解決手順（1分）：</p>
+                            <p>1. 個人のGmailアカウントでスプレッドシートを作成</p>
+                            <p>2. このデータ（個人実績）をコピー＆ペースト</p>
+                            <p>3. 「ウェブに公開（CSV）」を発行してURL差し替え</p>
+                        </div>
+                    </div>
                 `;
             }
         }
