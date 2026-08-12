@@ -22,7 +22,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">SSレイアウト完全最適化同期中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">実績データ同期中...</p>
     </div>
 
     <!-- Header -->
@@ -45,7 +45,7 @@
                 <div class="text-right hidden sm:block">
                     <p class="text-xs text-slate-400">連携ステータス</p>
                     <p class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> SS構造列マッピング適用済み
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> スプレッドシート完全同期中
                     </p>
                 </div>
             </div>
@@ -61,7 +61,7 @@
                 <h2 class="text-sm font-bold text-amber-400 flex items-center gap-2">
                     <span>🔍</span> 実績データ検索 ＆ 多角分析ソート
                 </h2>
-                <span class="text-xs bg-purple-900/60 text-purple-300 px-2.5 py-1 rounded-full border border-purple-700/40" id="dataStatus">解析最適化済み</span>
+                <span class="text-xs bg-emerald-900/60 text-emerald-300 px-2.5 py-1 rounded-full border border-emerald-700/40" id="dataStatus">データ検証中...</span>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
@@ -89,7 +89,7 @@
                         <option value="price">🏷️ アクセサリ単価</option>
                         <option value="targetRate" id="targetOptionLabel">🎯 店舗目標達成率 (%)</option>
                         <option value="diff">📊 全社平均比較 差分</option>
-                        <option value="itemTotal">📦 総販売購入個数</option>
+                        <option value="itemTotal">📦 総販購入個数</option>
                     </select>
                 </div>
             </div>
@@ -139,7 +139,7 @@
                 </div>
             </div>
 
-            <!-- 可視化比較棒グラフ（内訳可視化） -->
+            <!-- 可視化比較棒グラフ -->
             <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
                 <div>
                     <div class="flex justify-between items-start mb-1">
@@ -164,8 +164,6 @@
     <script>
         const CSV_URLS = {
             target: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=0&single=true&output=csv",
-            store: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=21976197&single=true&output=csv",
-            qv: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=1867085840&single=true&output=csv",
             personal: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=288066209&single=true&output=csv"
         };
 
@@ -208,8 +206,8 @@
                 const textTarget = await resTarget.text();
                 const textPersonal = await resPersonal.text();
 
-                // 1. 目標マップ読み込み
-                const targetLines = textTarget.split('\n');
+                // 1. 目標マップ作成
+                const targetLines = textTarget.split(/\r?\n/);
                 storeTargetMap = {};
                 for (let i = 0; i < targetLines.length; i++) {
                     const row = parseCSVLine(targetLines[i]);
@@ -220,53 +218,64 @@
                     }
                 }
 
-                // 2. 個人実績データのパース（画像5枚目の構造に厳密対応）
-                const pLines = textPersonal.split('\n').filter(l => l.trim() !== '');
+                // 2. 個人実績パース（自動ヘッダー検索＋固定フォールバック）
+                const pLines = textPersonal.split(/\r?\n/).filter(l => l.trim() !== '');
+                
+                let idxArea = 0;   // A列 (所属営業G名)
+                let idxName = 2;   // C列 (担当者名)
+                let idxStore = 3;  // D列 (所属部門名)
+                let idxSales = 7;  // H列 (アクセサリ売上金額)
+                let idxPrice = 8;  // I列 (アクセサリ総販単価)
+                let idxDiff = 9;   // J列 (全社平均比較)
+                let idxTotal = 10; // K列 (アクセサリ総販購入個数)
+
+                // ヘッダーキーワードによる動的検索
+                for (let i = 0; i < Math.min(10, pLines.length); i++) {
+                    const row = parseCSVLine(pLines[i]);
+                    row.forEach((col, cIdx) => {
+                        const cell = col.replace(/\s+/g, '');
+                        if (cell.includes('所属営業G名') || cell.includes('グループ')) idxArea = cIdx;
+                        if (cell.includes('担当者名') || cell.includes('氏名')) idxName = cIdx;
+                        if (cell.includes('所属部門名') || cell.includes('店舗名')) idxStore = cIdx;
+                        if (cell.includes('アクセサリ売上金額') || cell.includes('売上金額')) idxSales = cIdx;
+                        if (cell.includes('アクセサリ総販単価') || cell.includes('総販単価')) idxPrice = cIdx;
+                        if (cell.includes('全社平均比較') || cell.includes('平均比較')) idxDiff = cIdx;
+                        if (cell.includes('アクセサリ総販購入個数') || cell.includes('購入個数')) idxTotal = cIdx;
+                    });
+                }
+
                 rawPersonalData = [];
                 storeTotalSalesMap = {};
 
                 for (let i = 0; i < pLines.length; i++) {
                     const row = parseCSVLine(pLines[i]);
-                    
-                    // SS構造（画像5枚目参照）：
-                    // A列: 所属G名 (row[0])
-                    // B列: 担当者CD (row[1])
-                    // C列: 担当者名 (row[2])
-                    // D列: 所属部門名(店舗名) (row[3])
-                    // H列: アクセサリ売上金額 (row[7])
-                    // I列: アクセサリ総販単価 (row[8])
-                    // J列: 平均比較 (row[9])
-                    // K列: 総販購入個数 (row[10])
+                    const name = row[idxName] ? row[idxName].trim() : '';
 
-                    if (row.length >= 8) {
-                        const area = row[0] || '';
-                        const name = row[2] || '';
-                        const store = row[3] || '';
-                        
-                        // ヘッダーやID数値の誤抽出をブロック
-                        if (name && name !== '担当者名' && name !== 'BP平均' && isNaN(Number(name))) {
-                            const sales = parseFloat((row[7] || '').replace(/[￥,]/g, '')) || 0;
-                            const price = parseFloat((row[8] || '').replace(/[￥,]/g, '')) || 0;
-                            const diff = parseFloat((row[9] || '').replace(/[￥,]/g, '')) || 0;
-                            const itemTotal = parseFloat((row[10] || '').replace(/[￥,]/g, '')) || 0;
+                    // 有効なデータ行か判定（名前が存在し、ヘッダー行や数文字IDでない）
+                    if (name && !name.includes('担当者名') && !name.includes('BP平均') && isNaN(Number(name))) {
+                        const area = row[idxArea] ? row[idxArea].trim() : '';
+                        const store = row[idxStore] ? row[idxStore].trim() : '';
 
-                            // 商材別サブスコアの抽出（ダミー補正なしの生データ）
-                            const itemScores = [
-                                Math.round(itemTotal * 0.3),
-                                Math.round(itemTotal * 0.25),
-                                Math.round(itemTotal * 0.15),
-                                Math.round(itemTotal * 0.15),
-                                Math.round(itemTotal * 0.1),
-                                Math.round(itemTotal * 0.05)
-                            ];
+                        const sales = parseFloat((row[idxSales] || '0').replace(/[￥,]/g, '')) || 0;
+                        const price = parseFloat((row[idxPrice] || '0').replace(/[￥,]/g, '')) || 0;
+                        const diff = parseFloat((row[idxDiff] || '0').replace(/[￥,]/g, '')) || 0;
+                        const itemTotal = parseFloat((row[idxTotal] || '0').replace(/[￥,]/g, '')) || 0;
 
-                            rawPersonalData.push({ area, name, store, sales, price, diff, itemScores, itemTotal });
-                            storeTotalSalesMap[store] = (storeTotalSalesMap[store] || 0) + sales;
-                        }
+                        const itemScores = [
+                            Math.round(itemTotal * 0.3),
+                            Math.round(itemTotal * 0.25),
+                            Math.round(itemTotal * 0.15),
+                            Math.round(itemTotal * 0.15),
+                            Math.round(itemTotal * 0.1),
+                            Math.round(itemTotal * 0.05)
+                        ];
+
+                        rawPersonalData.push({ area, name, store, sales, price, diff, itemScores, itemTotal });
+                        storeTotalSalesMap[store] = (storeTotalSalesMap[store] || 0) + sales;
                     }
                 }
 
-                // 目標達成率・寄与率の計算
+                // 目標達成率・寄与率付与
                 rawPersonalData.forEach(item => {
                     const stTarget = storeTargetMap[item.store] || (storeTotalSalesMap[item.store] * 1.1) || 1000000;
                     const stSales = storeTotalSalesMap[item.store] || item.sales;
@@ -290,14 +299,25 @@
         }
 
         function populateDropdowns() {
-            const areas = [...new Set(rawPersonalData.map(d => d.area).filter(Boolean))];
             const groupSelect = document.getElementById('groupSelect');
             groupSelect.innerHTML = '<option value="ALL">全エリア（全社）</option>';
+
+            const areas = [...new Set(rawPersonalData.map(d => d.area).filter(Boolean))];
             areas.forEach(a => {
                 const opt = document.createElement('option');
-                opt.value = a; opt.innerText = a;
+                opt.value = a;
+                opt.innerText = a;
                 groupSelect.appendChild(opt);
             });
+
+            const statusEl = document.getElementById('dataStatus');
+            if (rawPersonalData.length > 0) {
+                statusEl.innerText = `${rawPersonalData.length}名 データ抽出完了`;
+                statusEl.className = "text-xs bg-emerald-900/60 text-emerald-300 px-2.5 py-1 rounded-full border border-emerald-700/40";
+            } else {
+                statusEl.innerText = "データ0件（要確認）";
+                statusEl.className = "text-xs bg-rose-900/60 text-rose-300 px-2.5 py-1 rounded-full border border-rose-700/40";
+            }
         }
 
         function filterData() {
@@ -367,7 +387,6 @@
 
             const sorted = [...filtered].sort((a, b) => (b[activeSortKey] || 0) - (a[activeSortKey] || 0));
 
-            // ランキングカード作成（正しくフォーマットされた大金額を表示）
             const container = document.getElementById('rankingContainer');
             container.innerHTML = '';
 
