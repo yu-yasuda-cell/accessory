@@ -22,7 +22,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">スプレッドシート実データ読み込み中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">スプレッドシート実データ同期中...</p>
     </div>
 
     <!-- Header -->
@@ -155,28 +155,30 @@
         let rawPersonalData = [];
         let radarChart, lineChart;
 
-        window.onload = async function() {
+        window.onload = function() {
             initCharts();
-            await fetchSpreadsheetData();
+            fetchDataViaJSONP();
         };
 
-        async function fetchSpreadsheetData() {
-            try {
-                const res = await fetch(GAS_URL);
-                const data = await res.json();
-                rawPersonalData = data.personal || [];
-                
-                populateDropdowns();
-                filterData();
-
-                document.getElementById('loading').classList.add('hidden');
-            } catch (err) {
-                console.error("GASデータ取得エラー:", err);
+        // JSONP方式で社内制限GASから安全にデータ取得
+        function fetchDataViaJSONP() {
+            const script = document.createElement('script');
+            script.src = `${GAS_URL}?callback=handleGASResponse`;
+            script.onerror = function() {
                 document.getElementById('loading').innerHTML = `
                     <p class="text-rose-400 font-bold">データ読み込みエラーが発生しました。</p>
-                    <p class="text-xs text-slate-400">GASのアクセス権限（「全員」に設定）をご確認ください。</p>
+                    <p class="text-xs text-slate-400">GASのアクセス権限をご確認ください。</p>
                 `;
-            }
+            };
+            document.body.appendChild(script);
+        }
+
+        // GASからのコールバック関数
+        function handleGASResponse(data) {
+            rawPersonalData = data.personal || [];
+            populateDropdowns();
+            filterData();
+            document.getElementById('loading').classList.add('hidden');
         }
 
         function populateDropdowns() {
@@ -193,7 +195,6 @@
             const area = document.getElementById('groupSelect').value;
             const metric = document.getElementById('metricSelect').value;
 
-            // 店舗ドロップダウンの更新
             let filtered = rawPersonalData;
             if (area !== 'ALL') filtered = filtered.filter(d => d.area === area);
 
@@ -238,10 +239,8 @@
         }
 
         function updateView(dataList, metricKey) {
-            // ソート（売上または単価昇順）
             const sorted = [...dataList].sort((a, b) => b[metricKey] - a[metricKey]);
 
-            // ランキングTOP3の表示更新
             const container = document.getElementById('rankingContainer');
             container.innerHTML = '';
 
@@ -273,7 +272,6 @@
                 container.innerHTML += cardHtml;
             }
 
-            // 集計値の更新
             const totalSales = sorted.reduce((acc, cur) => acc + cur.sales, 0);
             const avgPrice = sorted.length ? Math.round(sorted.reduce((acc, cur) => acc + cur.price, 0) / sorted.length) : 0;
 
@@ -281,7 +279,6 @@
             document.getElementById('avgPriceVal').innerText = '￥' + avgPrice.toLocaleString();
             document.getElementById('crewCountVal').innerText = sorted.length + '名';
 
-            // レーダーチャート・AIアドバイス更新
             const selectedCrew = document.getElementById('crewSelect').value;
             if (selectedCrew !== 'ALL') {
                 const crewObj = sorted.find(c => c.name === selectedCrew);
