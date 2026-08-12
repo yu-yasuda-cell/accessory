@@ -22,7 +22,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">実績データ ＆ 選択挙動完全同期中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">FX(売上)・FY(単価)指標 ＆ データ同期中...</p>
     </div>
 
     <!-- Header -->
@@ -45,7 +45,7 @@
                 <div class="text-right hidden sm:block">
                     <p class="text-xs text-slate-400">連携ステータス</p>
                     <p class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 4タブLIVE完全連動中
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> FX(売上) FY(単価) 完全適合連動中
                     </p>
                 </div>
             </div>
@@ -141,9 +141,14 @@
                         <canvas id="radarChart"></canvas>
                     </div>
                 </div>
-                <div class="mt-4 bg-purple-950/50 border border-purple-800/50 rounded-xl p-3 text-xs">
-                    <p class="font-bold text-purple-300 mb-1">⚔️ SELECTION攻略アドバイス</p>
-                    <p class="text-purple-100" id="aiAdvice">データから強み・改善点をリアルタイム算出中...</p>
+                <!-- ⚔️ SELECTION攻略アドバイス -->
+                <div class="mt-4 bg-purple-950/60 border border-purple-800/60 rounded-xl p-3.5 text-xs shadow-inner">
+                    <p class="font-black text-amber-300 mb-1 flex items-center gap-1">
+                        <span>⚔️</span> SELECTION攻略分析レポート
+                    </p>
+                    <div class="text-purple-100 leading-relaxed space-y-1" id="aiAdvice">
+                        データ分析中...
+                    </div>
                 </div>
             </div>
 
@@ -154,7 +159,7 @@
                         <h3 class="text-base font-bold text-white">📊 商材別獲得状況の可視化比較</h3>
                         <span class="text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full" id="barChartBadge">可視化内訳</span>
                     </div>
-                    <p class="text-xs text-slate-400 mb-3" id="barSub">商材カテゴリ別の詳細内訳</p>
+                    <p class="text-xs text-slate-400 mb-3" id="barSub">商材カテゴリ別の詳細内訳 (%)</p>
                     <div class="relative w-full h-64">
                         <canvas id="barChart"></canvas>
                     </div>
@@ -178,6 +183,7 @@
         };
 
         let rawPersonalData = [];
+        let storeTabMetricsMap = {}; // FX列=売上金額, FY列=総販単価を正しく格納
         let storeTargetMap = {};
         let storeTotalSalesMap = {};
         let companyGlobalItemAvg = [0, 0, 0, 0, 0, 0];
@@ -186,6 +192,8 @@
             M: 'ﾌｨﾙﾑ購入率', O: 'ｺｰﾃｨﾝｸﾞ購入率', Q: 'ｽﾄﾚｰｼﾞ購入率', R: 'PhotoCube購入率',
             V: 'GaN購入率', X: 'GLIDiC購入率', AC: 'SD_128G', AD: 'SD_256G', AE: 'SD_512G'
         };
+
+        const itemLabels = ['ﾌｨﾙﾑ購入率', 'ｺｰﾃｨﾝｸﾞ購入率', 'ｽﾄﾚｰｼﾞ購入率', 'PhotoCube購入率', 'GaN購入率', 'GLIDiC購入率'];
 
         let radarChart, barChart;
 
@@ -220,12 +228,14 @@
 
         async function loadAllCSVData() {
             try {
-                const [resTarget, resPersonal] = await Promise.all([
+                const [resTarget, resStore, resPersonal] = await Promise.all([
                     fetch(CSV_URLS.target),
+                    fetch(CSV_URLS.store),
                     fetch(CSV_URLS.personal)
                 ]);
 
                 const textTarget = await resTarget.text();
+                const textStore = await resStore.text();
                 const textPersonal = await resPersonal.text();
 
                 // 1. 目標タブ解析
@@ -240,7 +250,35 @@
                     }
                 }
 
-                // 2. 個人実績タブ解析（6行目以降から読み込み）
+                // 2. 店舗別累計タブ解析（FX列＝売上金額, FY列＝総販単価）
+                const storeLines = textStore.split(/\r?\n/).filter(l => l.trim() !== '');
+                storeTabMetricsMap = {};
+
+                let idxStoreName = 2; // C列付近
+                let idxFX = 179; // FX列 (売上金額)
+                let idxFY = 180; // FY列 (総販単価)
+
+                if (storeLines.length >= 3) {
+                    const headerRow = parseCSVLine(storeLines[2]);
+                    headerRow.forEach((col, cIdx) => {
+                        const cell = col.replace(/\s+/g, '');
+                        if (cell.includes('店舗名') || cell.includes('部門名')) idxStoreName = cIdx;
+                        if (cell.includes('FX') || cell.includes('売上金額')) idxFX = cIdx;
+                        if (cell.includes('FY') || cell.includes('総販単価') || cell.includes('単価')) idxFY = cIdx;
+                    });
+                }
+
+                for (let i = 3; i < storeLines.length; i++) {
+                    const row = parseCSVLine(storeLines[i]);
+                    const stName = row[idxStoreName] ? row[idxStoreName].trim() : (row[1] || row[0] || '');
+                    if (stName && !stName.includes('店舗名')) {
+                        const fxSales = parseNum(row[idxFX] || row[179] || '0'); // 売上金額
+                        const fyPrice = parseNum(row[idxFY] || row[180] || '0'); // 総販単価
+                        storeTabMetricsMap[stName] = { sales: fxSales, price: fyPrice };
+                    }
+                }
+
+                // 3. 個人実績タブ解析（6行目以降から読み込み）
                 const pLines = textPersonal.split(/\r?\n/).filter(l => l.trim() !== '');
                 rawPersonalData = [];
                 storeTotalSalesMap = {};
@@ -266,7 +304,7 @@
                             const colQ  = parseNum(row[16]); // ｽﾄﾚｰｼﾞ購入率 %
                             const colR  = parseNum(row[17]); // PhotoCube購入率 %
                             const colV  = parseNum(row[21]); // GaN購入率 %
-                            const colX  = parseNum(row[23]); // GLIDiC購入率 % (X列)
+                            const colX  = parseNum(row[23]); // GLIDiC購入率 %
                             const colAC = parseNum(row[28]); // SD_128G
                             const colAD = parseNum(row[29]); // SD_256G
                             const colAE = parseNum(row[30]); // SD_512G
@@ -340,7 +378,6 @@
             }
         }
 
-        // 所属エリアが変更された時（店舗リストを再構築）
         function onGroupChange() {
             const area = document.getElementById('groupSelect').value;
             let filtered = rawPersonalData;
@@ -358,7 +395,6 @@
             onStoreChange();
         }
 
-        // 店舗名が変更された時（店舗リストは保持したまま、クルーリストのみ再構築）
         function onStoreChange() {
             const area = document.getElementById('groupSelect').value;
             const store = document.getElementById('storeSelect').value;
@@ -484,8 +520,15 @@
                 container.innerHTML += cardHtml;
             }
 
-            const totalSales = sorted.reduce((acc, cur) => acc + cur.sales, 0);
-            const avgPrice = sorted.length ? Math.round(sorted.reduce((acc, cur) => acc + cur.price, 0) / sorted.length) : 0;
+            // 店舗選択時は店舗別累計タブ(FX列=売上, FY列=単価)の正式な数値を表示
+            let totalSales = sorted.reduce((acc, cur) => acc + cur.sales, 0);
+            let avgPrice = sorted.length ? Math.round(sorted.reduce((acc, cur) => acc + cur.price, 0) / sorted.length) : 0;
+
+            if (store !== 'ALL' && storeTabMetricsMap[store]) {
+                if (storeTabMetricsMap[store].sales > 0) totalSales = storeTabMetricsMap[store].sales;
+                if (storeTabMetricsMap[store].price > 0) avgPrice = storeTabMetricsMap[store].price;
+            }
+
             const avgRateVal = sorted.length ? Math.round(sorted.reduce((acc, cur) => acc + (isCrewSelected ? cur.storeContributionRate : cur.storeTargetRate), 0) / sorted.length) : 0;
 
             document.getElementById('totalSalesVal').innerText = '￥' + totalSales.toLocaleString();
@@ -502,92 +545,113 @@
             const barSub = document.getElementById('barSub');
 
             const realCompanyAvg = companyGlobalItemAvg;
+            let currentScores = [0,0,0,0,0,0];
+            let targetScores = realCompanyAvg;
+            let targetLabelName = "全社平均 (%)";
+            let subjectName = "";
 
             if (isCrewSelected && activeList.length) {
                 const crewObj = activeList[0];
+                subjectName = `${crewObj.name} さん`;
                 badge.innerText = "👤 個人商材分布";
                 radarSub.innerText = `選択: ${crewObj.store} / ${crewObj.name} さん`;
                 barSub.innerText = `${crewObj.name} さんの獲得商材内訳 (%)`;
 
-                const crewScores = crewObj.itemScores.slice(0, 6);
-                radarChart.data.datasets[0].label = `${crewObj.name} さん`;
-                radarChart.data.datasets[0].data = crewScores;
-                radarChart.data.datasets[1].label = "全社平均 (%)";
-                radarChart.data.datasets[1].data = realCompanyAvg;
-
-                barChart.data.datasets[0].label = `${crewObj.name} さんの実績 (%)`;
-                barChart.data.datasets[0].data = crewScores;
-                barChart.data.datasets[1].label = "全社平均 (%)";
-                barChart.data.datasets[1].data = realCompanyAvg;
-
-                aiAdvice.innerHTML = `<strong>${crewObj.name}</strong> さんのアクセサリ売上は <strong>￥${crewObj.sales.toLocaleString()}</strong>（単価 ￥${crewObj.price.toLocaleString()}）。全社平均購入率と比較して強みアイテムの提案軸を更に伸ばしていきましょう！`;
+                currentScores = crewObj.itemScores.slice(0, 6);
+                targetScores = realCompanyAvg;
+                targetLabelName = "全社平均 (実算出)";
 
             } else if (selectedStore !== 'ALL') {
-                badge.innerText = "🏪 G1位店舗 比較";
+                subjectName = selectedStore;
+                badge.innerText = "🏪 店舗分析モード";
                 radarSub.innerText = `選択店舗: ${selectedStore}`;
-                barSub.innerText = `${selectedStore} vs G1位店舗 内訳比較 (%)`;
+                barSub.innerText = `${selectedStore} の商材別購入率 (%)`;
+
+                // 店舗選択時も購入率（%）はクルー平均で正確に算出して比較
+                const currentAvgScores = [0,0,0,0,0,0];
+                activeList.forEach(item => { for(let k=0; k<6; k++) currentAvgScores[k] += (item.itemScores[k]||0); });
+                currentScores = currentAvgScores.map(v => activeList.length ? Math.round((v / activeList.length) * 10) / 10 : 0);
 
                 const sameAreaCrew = rawPersonalData.filter(d => d.area === activeList[0]?.area);
                 const storeGroupSales = {};
                 sameAreaCrew.forEach(c => storeGroupSales[c.store] = (storeGroupSales[c.store] || 0) + c.sales);
-                
                 const topStoreName = Object.keys(storeGroupSales).sort((a,b) => storeGroupSales[b] - storeGroupSales[a])[0] || selectedStore;
                 const topStoreCrew = rawPersonalData.filter(d => d.store === topStoreName);
 
-                const currentAvgScores = [0,0,0,0,0,0];
-                activeList.forEach(item => { for(let k=0; k<6; k++) currentAvgScores[k] += (item.itemScores[k]||0); });
-                const currentScores = currentAvgScores.map(v => activeList.length ? Math.round((v / activeList.length) * 10) / 10 : 0);
-
                 const topAvgScores = [0,0,0,0,0,0];
                 topStoreCrew.forEach(item => { for(let k=0; k<6; k++) topAvgScores[k] += (item.itemScores[k]||0); });
-                const topScores = topAvgScores.map(v => topStoreCrew.length ? Math.round((v / topStoreCrew.length) * 10) / 10 : 0);
-
-                radarChart.data.datasets[0].label = `${selectedStore}`;
-                radarChart.data.datasets[0].data = currentScores;
-                radarChart.data.datasets[1].label = `🏆 G1位 (${topStoreName})`;
-                radarChart.data.datasets[1].data = topScores;
-
-                barChart.data.datasets[0].label = `${selectedStore}`;
-                barChart.data.datasets[0].data = currentScores;
-                barChart.data.datasets[1].label = `🏆 G1位 (${topStoreName})`;
-                barChart.data.datasets[1].data = topScores;
-
-                aiAdvice.innerHTML = `G1位店舗（<strong>${topStoreName}</strong>）との購入率差分を分析し、セット提案を強化していきましょう！`;
+                targetScores = topAvgScores.map(v => topStoreCrew.length ? Math.round((v / topStoreCrew.length) * 10) / 10 : 0);
+                targetLabelName = `🏆 G1位 (${topStoreName})`;
 
             } else {
+                subjectName = selectedArea === 'ALL' ? '全社' : selectedArea;
                 badge.innerText = "🌐 全社/エリア比較";
                 radarSub.innerText = `選択: ${selectedArea === 'ALL' ? '全社' : selectedArea}`;
                 barSub.innerText = "商材別購入率の可視化 (%)";
 
                 const areaAvgScores = [0,0,0,0,0,0];
                 activeList.forEach(item => { for(let k=0; k<6; k++) areaAvgScores[k] += (item.itemScores[k]||0); });
-                const scores = areaAvgScores.map(v => activeList.length ? Math.round((v / activeList.length) * 10) / 10 : 0);
-
-                radarChart.data.datasets[0].label = "選択エリア平均";
-                radarChart.data.datasets[0].data = scores;
-                radarChart.data.datasets[1].label = "全社平均";
-                radarChart.data.datasets[1].data = realCompanyAvg;
-
-                barChart.data.datasets[0].label = "選択エリア平均";
-                barChart.data.datasets[0].data = scores;
-                barChart.data.datasets[1].label = "全社平均";
-                barChart.data.datasets[1].data = realCompanyAvg;
-
-                aiAdvice.innerHTML = `全社LIVE連携が正常に動作しています。購入率％指標（GLIDiC購入率含む）を基準として活用してください。`;
+                currentScores = areaAvgScores.map(v => activeList.length ? Math.round((v / activeList.length) * 10) / 10 : 0);
+                targetScores = realCompanyAvg;
+                targetLabelName = "全社平均";
             }
+
+            radarChart.data.datasets[0].label = subjectName;
+            radarChart.data.datasets[0].data = currentScores;
+            radarChart.data.datasets[1].label = targetLabelName;
+            radarChart.data.datasets[1].data = targetScores;
+
+            barChart.data.datasets[0].label = subjectName;
+            barChart.data.datasets[0].data = currentScores;
+            barChart.data.datasets[1].label = targetLabelName;
+            barChart.data.datasets[1].data = targetScores;
 
             radarChart.update();
             barChart.update();
+
+            generateAiAdvice(subjectName, currentScores, targetScores, itemLabels, aiAdvice);
+        }
+
+        function generateAiAdvice(subjectName, currentScores, targetScores, labels, containerEl) {
+            let maxDiff = -999;
+            let minDiff = 999;
+            let bestIdx = 0;
+            let worstIdx = 0;
+
+            for (let i = 0; i < 6; i++) {
+                const diff = currentScores[i] - targetScores[i];
+                if (diff > maxDiff) {
+                    maxDiff = diff;
+                    bestIdx = i;
+                }
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    worstIdx = i;
+                }
+            }
+
+            const bestItem = labels[bestIdx];
+            const worstItem = labels[worstIdx];
+            const bestVal = currentScores[bestIdx];
+            const worstVal = currentScores[worstIdx];
+            const bestDiffStr = maxDiff >= 0 ? `+${Math.round(maxDiff * 10) / 10}%` : `${Math.round(maxDiff * 10) / 10}%`;
+            const worstDiffStr = minDiff >= 0 ? `+${Math.round(minDiff * 10) / 10}%` : `${Math.round(minDiff * 10) / 10}%`;
+
+            let adviceText = `
+                <p><strong>【${subjectName} のSELECTION分析】</strong></p>
+                <p>🌟 <strong>強み商材</strong>：<span class="text-amber-300 font-bold">${bestItem} (${bestVal}%)</span> が比較対象に対して <span class="text-emerald-400 font-bold">${bestDiffStr}</span> と非常に高い実績です！この提案スタイルを強みとして維持しましょう。</p>
+                <p>🎯 <strong>注力ポイント</strong>：<span class="text-pink-300 font-bold">${worstItem} (${worstVal}%)</span> が比較に対して <span class="text-rose-400 font-bold">${worstDiffStr}</span> のギャップがあります。この商材のセット提案・お声がけを意識することで、アクセサリ単価のさらなる底上げが狙えます！</p>
+            `;
+
+            containerEl.innerHTML = adviceText;
         }
 
         function initCharts() {
-            const labels = ['ﾌｨﾙﾑ購入率', 'ｺｰﾃｨﾝｸﾞ購入率', 'ｽﾄﾚｰｼﾞ購入率', 'PhotoCube購入率', 'GaN購入率', 'GLIDiC購入率'];
-
             const ctxRadar = document.getElementById('radarChart').getContext('2d');
             radarChart = new Chart(ctxRadar, {
                 type: 'radar',
                 data: {
-                    labels: labels,
+                    labels: itemLabels,
                     datasets: [{
                         label: '選択対象',
                         data: [15, 18, 12, 14, 10, 8],
@@ -611,7 +675,7 @@
             barChart = new Chart(ctxBar, {
                 type: 'bar',
                 data: {
-                    labels: labels,
+                    labels: itemLabels,
                     datasets: [{
                         label: '選択対象',
                         data: [15, 18, 12, 14, 10, 8],
