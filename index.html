@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>アクセサリーマスター！ - KANDO BOARD!</title>
+    <!-- Tailwind CSS & Chart.js -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -17,87 +18,342 @@
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen">
-    <div id="loading" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
-        <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">実績データ連動中...</p>
+
+    <!-- 社内アカウント ログインモーダル -->
+    <div id="loginOverlay" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[200] flex flex-col items-center justify-center p-4">
+        <div class="bg-slate-800 border border-purple-500/30 rounded-3xl p-6 sm:p-8 max-w-md w-full text-center space-y-6 shadow-2xl">
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-pink-500 mx-auto flex items-center justify-center text-3xl shadow-lg">
+                ✨
+            </div>
+            <div>
+                <h2 class="text-2xl font-black text-white">アクセサリーマスター！</h2>
+                <p class="text-xs text-purple-300 font-bold mt-1">〜SELECTIONマスターへの道⚔️〜</p>
+            </div>
+            <div class="bg-purple-950/50 border border-purple-800/40 rounded-xl p-4 text-xs text-purple-200 text-left space-y-1">
+                <p class="font-bold text-amber-300">🔒 社内専用セキュリティ保護</p>
+                <p>スプレッドシートデータ連携のため、<strong>@bellpark.co.jp</strong> のアカウント認証が必要です。</p>
+            </div>
+            <button onclick="loginAndFetchData()" class="w-full bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-black py-3.5 px-6 rounded-xl text-sm shadow-lg transition duration-200 transform active:scale-95 flex items-center justify-center gap-2">
+                <span>🔑 社内アカウントでログインして開く</span>
+            </button>
+        </div>
     </div>
 
-    <!-- Header (省略) -->
+    <!-- Header -->
     <header class="kando-bg border-b border-purple-900/50 sticky top-0 z-50 backdrop-blur-md bg-opacity-90">
-        <div class="max-w-7xl mx-auto px-4 py-3"><h1 class="text-xl font-black text-amber-300">アクセサリーマスター！ 〜LIVE実績連携版〜</h1></div>
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-400 to-pink-500 flex items-center justify-center font-black text-slate-950 text-xl shadow-lg">
+                    ✨
+                </div>
+                <div>
+                    <h1 class="text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-pink-400 to-amber-200">
+                        アクセサリーマスター！
+                    </h1>
+                    <p class="text-xs text-purple-300 font-bold tracking-wide">
+                        〜SELECTIONマスターへの道⚔️〜
+                    </p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="text-right hidden sm:block">
+                    <p class="text-xs text-slate-400">連携ステータス</p>
+                    <p class="text-xs font-bold text-emerald-400 flex items-center gap-1" id="statusLabel">
+                        <span class="w-2 h-2 rounded-full bg-slate-500"></span> ログイン待機中
+                    </p>
+                </div>
+            </div>
+        </div>
     </header>
 
+    <!-- Main Container -->
     <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        <section class="bg-slate-800/80 rounded-2xl p-4">
+
+        <!-- 🔍 絞り込み ＆ 比較コントロール -->
+        <section class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-4 shadow-xl backdrop-blur-md">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-bold text-amber-400 flex items-center gap-2">
+                    <span>🔍</span> 実績データ検索 ＆ 多角分析フィルター
+                </h2>
+                <span class="text-xs bg-purple-900/60 text-purple-300 px-2.5 py-1 rounded-full border border-purple-700/40" id="dataStatus">認証待ち</span>
+            </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <select id="groupSelect" onchange="filterData()" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200"><option value="ALL">全エリア</option></select>
-                <select id="storeSelect" onchange="filterData()" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200"><option value="ALL">全店舗</option></select>
-                <select id="crewSelect" onchange="updateCrewView()" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200"><option value="ALL">全員</option></select>
-                <select id="metricSelect" onchange="filterData()" class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-amber-300 font-bold"><option value="sales">アクセサリ売上</option><option value="price">総販単価</option></select>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1 font-medium">1. 所属エリア</label>
+                    <select id="groupSelect" onchange="filterData()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200">
+                        <option value="ALL">全エリア（全社）</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1 font-medium">2. 店舗名</label>
+                    <select id="storeSelect" onchange="filterData()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200">
+                        <option value="ALL">全店舗</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1 font-medium">3. クルー名</label>
+                    <select id="crewSelect" onchange="updateCrewView()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200">
+                        <option value="ALL">全員</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1 font-medium">4. 主指標</label>
+                    <select id="metricSelect" onchange="filterData()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-amber-300 font-bold">
+                        <option value="sales">アクセサリ売上金額 (￥)</option>
+                        <option value="price">総販単価 (￥)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 比較機能トグルバー -->
+            <div class="mt-4 pt-3 border-t border-slate-700/60 flex items-center justify-between text-xs">
+                <div class="flex items-center space-x-3">
+                    <span class="text-slate-400 font-medium">🆚 比較モード:</span>
+                    <label class="inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="compareToggle" checked onchange="toggleCompare()" class="sr-only peer">
+                        <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                        <span class="ml-2 text-slate-200 font-semibold" id="compareLabel">全社平均と比較表示中</span>
+                    </label>
+                </div>
             </div>
         </section>
 
-        <div id="rankingContainer" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+        <!-- 🏆 ランキング TOP3（実データ連動） -->
+        <section>
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-extrabold text-white flex items-center gap-2">
+                    <span>👑</span> 輝くスター（実績ランキング TOP3）
+                </h2>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="rankingContainer">
+                <!-- 動的に生成されます -->
+            </div>
+        </section>
+
+        <!-- 📊 レーダーチャート & 週次グラフ -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+                <div>
+                    <h3 class="text-base font-bold text-white mb-0.5">🎯 カテゴリ獲得バランス（多角形分析）</h3>
+                    <p class="text-xs text-slate-400 mb-3" id="radarSub">選択対象: 全体</p>
+                    <div class="relative w-full h-64">
+                        <canvas id="radarChart"></canvas>
+                    </div>
+                </div>
+                <div class="mt-4 bg-purple-950/50 border border-purple-800/50 rounded-xl p-3 text-xs">
+                    <p class="font-bold text-purple-300 mb-1">⚔️ SELECTION攻略アドバイス</p>
+                    <p class="text-purple-100" id="aiAdvice">データから強み・改善点をリアルタイム算出中...</p>
+                </div>
+            </div>
+
+            <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+                <div>
+                    <h3 class="text-base font-bold text-white mb-0.5">📈 週次進捗 ＆ 目標比較</h3>
+                    <p class="text-xs text-slate-400 mb-3">当月着地目標 vs 累計実績推移</p>
+                    <div class="relative w-full h-64">
+                        <canvas id="lineChart"></canvas>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-2 mt-4 text-center text-xs">
+                    <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-700"><p class="text-slate-400 text-[10px]">選択エリア売上</p><p class="font-bold" id="totalSalesVal">￥0</p></div>
+                    <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-700"><p class="text-slate-400 text-[10px]">平均単価</p><p class="font-extrabold text-amber-400" id="avgPriceVal">￥0</p></div>
+                    <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-700"><p class="text-slate-400 text-[10px]">対象人数</p><p class="font-extrabold text-emerald-400" id="crewCountVal">0名</p></div>
+                </div>
+            </div>
+        </section>
+
     </main>
 
     <script>
-        const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?output=csv";
+        const GAS_URL = "https://script.google.com/a/macros/bellpark.co.jp/s/AKfycbxXHAcH_6Xajp1o0emgagoOr2RafLPtlbxrS2jcxJ2DRV40CH-QvezTVp0hQaFL_Jel/exec";
         let rawPersonalData = [];
+        let radarChart, lineChart;
 
-        window.onload = async function() {
-            try {
-                const res = await fetch(CSV_URL);
-                const csvText = await res.text();
-                const lines = csvText.split('\n');
-                
-                // 5行目までヘッダーと仮定し、6行目から読み込み
-                for (let i = 5; i < lines.length; i++) {
-                    const cols = lines[i].split(',');
-                    if (cols.length > 12 && cols[3]) {
-                        rawPersonalData.push({
-                            area: cols[1].trim(),
-                            name: cols[3].trim(),
-                            store: cols[5].trim(),
-                            sales: Number(cols[11]) || 0,
-                            price: Number(cols[12]) || 0
-                        });
-                    }
-                }
-                
-                // プルダウン生成
-                const areas = [...new Set(rawPersonalData.map(d => d.area).filter(Boolean))];
-                const g = document.getElementById('groupSelect');
-                areas.forEach(a => g.innerHTML += `<option value="${a}">${a}</option>`);
-                
-                document.getElementById('loading').classList.add('hidden');
-                filterData();
-            } catch(e) { alert("データ読み込み失敗"); }
+        window.onload = function() {
+            initCharts();
         };
+
+        function loginAndFetchData() {
+            // 社内ログイン認証ポップアップを開く
+            window.open(GAS_URL, 'gasAuthWindow', 'width=600,height=600');
+            
+            document.getElementById('statusLabel').innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span> 認証中...';
+            document.getElementById('loginOverlay').classList.add('hidden');
+
+            // 認証後にデータをロード
+            setTimeout(() => {
+                const script = document.createElement('script');
+                script.src = `${GAS_URL}?callback=handleGASResponse`;
+                document.body.appendChild(script);
+            }, 2000);
+        }
+
+        function handleGASResponse(data) {
+            rawPersonalData = data.personal || [];
+            populateDropdowns();
+            filterData();
+            document.getElementById('statusLabel').innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> スプレッドシートLIVE連動中';
+            document.getElementById('dataStatus').innerText = 'データ同期完了';
+        }
+
+        function populateDropdowns() {
+            const areas = [...new Set(rawPersonalData.map(d => d.area).filter(Boolean))];
+            const groupSelect = document.getElementById('groupSelect');
+            areas.forEach(a => {
+                const opt = document.createElement('option');
+                opt.value = a; opt.innerText = a;
+                groupSelect.appendChild(opt);
+            });
+        }
 
         function filterData() {
             const area = document.getElementById('groupSelect').value;
-            let filtered = area === 'ALL' ? rawPersonalData : rawPersonalData.filter(d => d.area === area);
-            
+            const metric = document.getElementById('metricSelect').value;
+
+            let filtered = rawPersonalData;
+            if (area !== 'ALL') filtered = filtered.filter(d => d.area === area);
+
             const stores = [...new Set(filtered.map(d => d.store).filter(Boolean))];
-            const s = document.getElementById('storeSelect');
-            s.innerHTML = '<option value="ALL">全店舗</option>';
-            stores.forEach(st => s.innerHTML += `<option value="${st}">${st}</option>`);
-            
-            updateView(filtered);
+            const storeSelect = document.getElementById('storeSelect');
+            storeSelect.innerHTML = '<option value="ALL">全店舗</option>';
+            stores.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s; opt.innerText = s;
+                storeSelect.appendChild(opt);
+            });
+
+            updateCrewList(filtered);
+            updateView(filtered, metric);
         }
 
-        function updateView(list) {
+        function updateCrewList(filteredData) {
+            const store = document.getElementById('storeSelect').value;
+            let data = filteredData;
+            if (store !== 'ALL') data = data.filter(d => d.store === store);
+
+            const crews = [...new Set(data.map(d => d.name).filter(Boolean))];
+            const crewSelect = document.getElementById('crewSelect');
+            crewSelect.innerHTML = '<option value="ALL">全員</option>';
+            crews.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c; opt.innerText = c;
+                crewSelect.appendChild(opt);
+            });
+        }
+
+        function updateCrewView() {
+            const metric = document.getElementById('metricSelect').value;
+            const area = document.getElementById('groupSelect').value;
+            const store = document.getElementById('storeSelect').value;
+
+            let filtered = rawPersonalData;
+            if (area !== 'ALL') filtered = filtered.filter(d => d.area === area);
+            if (store !== 'ALL') filtered = filtered.filter(d => d.store === store);
+
+            updateView(filtered, metric);
+        }
+
+        function updateView(dataList, metricKey) {
+            const sorted = [...dataList].sort((a, b) => b[metricKey] - a[metricKey]);
+
             const container = document.getElementById('rankingContainer');
             container.innerHTML = '';
-            const sorted = list.sort((a,b) => b.sales - a.sales).slice(0,3);
-            sorted.forEach((item, i) => {
-                container.innerHTML += `
-                    <div class="kando-card-gold rounded-2xl p-5 bg-slate-800 border border-slate-700">
-                        <p class="text-amber-400 font-bold">${i+1}位</p>
-                        <h3 class="text-xl font-black">${item.name}</h3>
-                        <p class="text-sm">売上: ￥${item.sales.toLocaleString()}</p>
-                    </div>`;
+
+            const styles = [
+                { bg: 'kando-card-gold glow-gold', badge: '🥇 1位', badgeBg: 'bg-amber-500' },
+                { bg: 'kando-card-silver', badge: '🥈 2位', badgeBg: 'bg-slate-300' },
+                { bg: 'kando-card-bronze', badge: '🥉 3位', badgeBg: 'bg-orange-400' }
+            ];
+
+            for (let i = 0; i < Math.min(3, sorted.length); i++) {
+                const item = sorted[i];
+                const st = styles[i];
+                const cardHtml = `
+                    <div class="${st.bg} rounded-2xl p-5 text-slate-900 shadow-xl relative overflow-hidden">
+                        <div class="flex justify-between items-start mb-3">
+                            <span class="${st.badgeBg} text-slate-950 font-black text-xs px-2.5 py-1 rounded-full">${st.badge}</span>
+                            <span class="text-xs font-bold text-slate-800 bg-white/60 px-2 py-0.5 rounded">単価 ￥${item.price.toLocaleString()}</span>
+                        </div>
+                        <p class="text-xs font-bold text-slate-700">${item.area} / ${item.store}</p>
+                        <h3 class="text-2xl font-black text-slate-950 my-1">${item.name} <span class="text-sm font-semibold">さん</span></h3>
+                        <div class="mt-4 flex justify-between items-end border-t border-slate-900/10 pt-3">
+                            <div>
+                                <p class="text-[10px] uppercase font-extrabold text-slate-700">アクセサリ売上</p>
+                                <p class="text-xl font-black text-slate-950">￥${item.sales.toLocaleString()}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += cardHtml;
+            }
+
+            const totalSales = sorted.reduce((acc, cur) => acc + cur.sales, 0);
+            const avgPrice = sorted.length ? Math.round(sorted.reduce((acc, cur) => acc + cur.price, 0) / sorted.length) : 0;
+
+            document.getElementById('totalSalesVal').innerText = '￥' + totalSales.toLocaleString();
+            document.getElementById('avgPriceVal').innerText = '￥' + avgPrice.toLocaleString();
+            document.getElementById('crewCountVal').innerText = sorted.length + '名';
+
+            const selectedCrew = document.getElementById('crewSelect').value;
+            if (selectedCrew !== 'ALL') {
+                const crewObj = sorted.find(c => c.name === selectedCrew);
+                if (crewObj) {
+                    document.getElementById('radarSub').innerText = `選択対象: ${crewObj.store} / ${crewObj.name}`;
+                    document.getElementById('aiAdvice').innerHTML = `単価 <strong>￥${crewObj.price.toLocaleString()}</strong>（全体平均比：${crewObj.diff >= 0 ? '+' : ''}￥${crewObj.diff.toLocaleString()}）。高単価セット提案を継続してグループを牽引しましょう！`;
+                }
+            } else {
+                document.getElementById('radarSub').innerText = `選択対象: 全体集計 (${sorted.length}名)`;
+                document.getElementById('aiAdvice').innerHTML = `全体平均単価は <strong>￥${avgPrice.toLocaleString()}</strong> です。上位店舗の獲得パターンを展開していきましょう！`;
+            }
+        }
+
+        function initCharts() {
+            const ctxRadar = document.getElementById('radarChart').getContext('2d');
+            radarChart = new Chart(ctxRadar, {
+                type: 'radar',
+                data: {
+                    labels: ['ケース', 'フィルム', 'SDカード', 'コーティング', '充電器', 'オーディオ'],
+                    datasets: [{
+                        label: '選択対象',
+                        data: [85, 90, 78, 88, 55, 70],
+                        fill: true,
+                        backgroundColor: 'rgba(245, 158, 11, 0.25)',
+                        borderColor: '#f59e0b',
+                        borderWidth: 2
+                    }, {
+                        label: '全社平均',
+                        data: [65, 70, 60, 62, 60, 58],
+                        fill: true,
+                        backgroundColor: 'rgba(148, 163, 184, 0.15)',
+                        borderColor: '#94a3b8',
+                        borderDash: [4, 4]
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
             });
+
+            const ctxLine = document.getElementById('lineChart').getContext('2d');
+            lineChart = new Chart(ctxLine, {
+                type: 'line',
+                data: {
+                    labels: ['1W', '2W', '3W', '4W'],
+                    datasets: [{
+                        label: '実績推移',
+                        data: [138, 295, 460, 628],
+                        borderColor: '#ec4899',
+                        backgroundColor: 'rgba(236, 72, 153, 0.1)',
+                        fill: true
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function toggleCompare() {
+            const isChecked = document.getElementById('compareToggle').checked;
+            document.getElementById('compareLabel').innerText = isChecked ? "全社平均と比較表示中" : "単体表示";
+            radarChart.data.datasets[1].hidden = !isChecked;
+            radarChart.update();
         }
     </script>
 </body>
