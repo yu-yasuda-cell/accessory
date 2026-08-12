@@ -22,7 +22,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">指定指標 ＆ リアルタイムデータ同期中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">GLIDiC(X列)データ修正・リアルタイム同期中...</p>
     </div>
 
     <!-- Header -->
@@ -89,7 +89,6 @@
                         <option value="price">🏷️ アクセサリ単価</option>
                         <option value="targetRate" id="targetOptionLabel">🎯 店舗目標達成率 (%)</option>
                         <option value="diff">📊 全社平均比較 差分</option>
-                        <!-- ご指定の指標に更新 -->
                         <option value="colM">📱 ﾌｨﾙﾑ購入率 (%)</option>
                         <option value="colO">✨ ｺｰﾃｨﾝｸﾞ購入率 (%)</option>
                         <option value="colQ">💾 ｽﾄﾚｰｼﾞ購入率 (%)</option>
@@ -263,18 +262,18 @@
                             const price = parseNum(row[9]); // J列
                             const diff  = parseNum(row[10]); // K列
 
-                            // ご指定列の実数値取得（M, O, Q, R, V, X は % 表記項目）
+                            // 各指定列の実数値取得（X列: index 23 = GLIDiC購入率%）
                             const colM  = parseNum(row[12]); // ﾌｨﾙﾑ購入率 %
                             const colO  = parseNum(row[14]); // ｺｰﾃｨﾝｸﾞ購入率 %
                             const colQ  = parseNum(row[16]); // ｽﾄﾚｰｼﾞ購入率 %
                             const colR  = parseNum(row[17]); // PhotoCube購入率 %
                             const colV  = parseNum(row[21]); // GaN購入率 %
-                            const colX  = parseNum(row[23]); // GLIDiC購入率 %
+                            const colX  = parseNum(row[23]); // GLIDiC購入率 % (X列)
                             const colAC = parseNum(row[28]); // SD_128G
                             const colAD = parseNum(row[29]); // SD_256G
                             const colAE = parseNum(row[30]); // SD_512G
 
-                            // 多角分析6商材マッピング（すべて％/主要購入率指標）：
+                            // 多角分析6商材マッピング（X列のcolXを6軸目に厳密割り当て）：
                             // 1: ﾌｨﾙﾑ購入率 (M列)
                             // 2: ｺｰﾃｨﾝｸﾞ購入率 (O列)
                             // 3: ｽﾄﾚｰｼﾞ購入率 (Q列)
@@ -578,7 +577,7 @@
                 barChart.data.datasets[1].label = "全社平均";
                 barChart.data.datasets[1].data = realCompanyAvg;
 
-                aiAdvice.innerHTML = `全社LIVE連携が正常に動作しています。新指定の購入率％指標を基準として活用してください。`;
+                aiAdvice.innerHTML = `全社LIVE連携が正常に動作しています。購入率％指標（GLIDiC購入率含む）を基準として活用してください。`;
             }
 
             radarChart.update();
