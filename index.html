@@ -22,7 +22,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">実績データ読み込み中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">4タブ全実績データ同期中...</p>
     </div>
 
     <!-- Header -->
@@ -45,7 +45,7 @@
                 <div class="text-right hidden sm:block">
                     <p class="text-xs text-slate-400">連携ステータス</p>
                     <p class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> スプレッドシートLIVE連動中
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 4タブ完全LIVE連動中
                     </p>
                 </div>
             </div>
@@ -61,7 +61,7 @@
                 <h2 class="text-sm font-bold text-amber-400 flex items-center gap-2">
                     <span>🔍</span> 実績データ検索 ＆ 多角分析フィルター
                 </h2>
-                <span class="text-xs bg-emerald-900/60 text-emerald-300 px-2.5 py-1 rounded-full border border-emerald-700/40" id="dataStatus">データ同期完了</span>
+                <span class="text-xs bg-emerald-900/60 text-emerald-300 px-2.5 py-1 rounded-full border border-emerald-700/40" id="dataStatus">4タブデータ同期完了</span>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
@@ -151,14 +151,23 @@
     </main>
 
     <script>
-        const PERSONAL_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCqHFk-1fPBdW2-UAxLZIZH0amTHrCqrtJpplQcant2rCXg1P32jpJdFxJ2j2sShgjJfJOrzHFDd6/pub?gid=566840329&single=true&output=csv";
+        // 4つのCSV URL
+        const CSV_URLS = {
+            target: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=0&single=true&output=csv",
+            store: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=21976197&single=true&output=csv",
+            qv: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=1867085840&single=true&output=csv",
+            personal: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=288066209&single=true&output=csv"
+        };
 
         let rawPersonalData = [];
+        let storeSummaryData = [];
+        let targetData = [];
+        let qvData = [];
         let radarChart, lineChart;
 
         window.onload = function() {
             initCharts();
-            loadCSVData();
+            loadAllCSVData();
         };
 
         function parseCSVLine(line) {
@@ -180,26 +189,26 @@
             return result;
         }
 
-        async function loadCSVData() {
+        async function loadAllCSVData() {
             try {
-                // CORSエラー回避のためプロキシ経由で直接フェッチを試行
-                let textPersonal = "";
-                try {
-                    const res = await fetch(PERSONAL_CSV_URL);
-                    if (!res.ok) throw new Error("Direct fetch failed");
-                    textPersonal = await res.text();
-                } catch (e) {
-                    // 直フェッチ失敗時はプロキシ経由
-                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(PERSONAL_CSV_URL)}`;
-                    const resProxy = await fetch(proxyUrl);
-                    textPersonal = await resProxy.text();
-                }
+                // 4つのCSVを非同期で同時取得
+                const [resTarget, resStore, resQV, resPersonal] = await Promise.all([
+                    fetch(CSV_URLS.target),
+                    fetch(CSV_URLS.store),
+                    fetch(CSV_URLS.qv),
+                    fetch(CSV_URLS.personal)
+                ]);
 
-                const lines = textPersonal.split('\n');
+                const textTarget = await resTarget.text();
+                const textStore = await resStore.text();
+                const textQV = await resQV.text();
+                const textPersonal = await resPersonal.text();
+
+                // 1. 個人実績データのパース
+                const pLines = textPersonal.split('\n');
                 rawPersonalData = [];
-
-                for (let i = 0; i < lines.length; i++) {
-                    const row = parseCSVLine(lines[i]);
+                for (let i = 0; i < pLines.length; i++) {
+                    const row = parseCSVLine(pLines[i]);
                     if (row.length > 3) {
                         const area = row[1] || '';
                         const name = row[3] || '';
@@ -214,27 +223,20 @@
                     }
                 }
 
-                if (rawPersonalData.length === 0) {
-                    throw new Error("データ件数0");
-                }
+                // 2. 目標・店舗別・QVデータのパース保持（画面連動拡張用）
+                targetData = textTarget.split('\n').map(parseCSVLine);
+                storeSummaryData = textStore.split('\n').map(parseCSVLine);
+                qvData = textQV.split('\n').map(parseCSVLine);
 
                 populateDropdowns();
                 filterData();
                 document.getElementById('loading').classList.add('hidden');
             } catch (err) {
-                console.error("データ読み込みエラー:", err);
+                console.error("データ同期エラー:", err);
                 document.getElementById('loading').innerHTML = `
-                    <div class="bg-slate-800 p-6 rounded-2xl border border-rose-500/40 text-center max-w-md mx-4 space-y-3">
-                        <p class="text-rose-400 font-bold text-base">社内セキュリティ制限によるブロック検出</p>
-                        <p class="text-xs text-slate-300 text-left leading-relaxed">
-                            社内アカウント（GWS）のデータ制限のため、GitHubからの通信がGoogle側でブロックされています。
-                        </p>
-                        <div class="bg-slate-900 p-3 rounded-lg text-left text-[11px] text-amber-300 space-y-1">
-                            <p class="font-bold">💡 解決手順（1分）：</p>
-                            <p>1. 個人のGmailアカウントでスプレッドシートを作成</p>
-                            <p>2. このデータ（個人実績）をコピー＆ペースト</p>
-                            <p>3. 「ウェブに公開（CSV）」を発行してURL差し替え</p>
-                        </div>
+                    <div class="bg-slate-800 p-6 rounded-2xl border border-rose-500/40 text-center max-w-md mx-4 space-y-2">
+                        <p class="text-rose-400 font-bold text-base">CSVデータ読み込みエラー</p>
+                        <p class="text-xs text-slate-400">スプレッドシートのWeb公開（CSV形式）設定をご確認ください。</p>
                     </div>
                 `;
             }
@@ -344,7 +346,7 @@
                 const crewObj = sorted.find(c => c.name === selectedCrew);
                 if (crewObj) {
                     document.getElementById('radarSub').innerText = `選択対象: ${crewObj.store} / ${crewObj.name}`;
-                    document.getElementById('aiAdvice').innerHTML = `単価 <strong>￥${crewObj.price.toLocaleString()}</strong>（差分：￥${crewObj.diff.toLocaleString()}）！高単価セット提案を継続してグループを牽引しましょう！`;
+                    document.getElementById('aiAdvice').innerHTML = `単価 <strong>￥${crewObj.price.toLocaleString()}</strong>（全体平均比：${crewObj.diff >= 0 ? '+' : ''}￥${crewObj.diff.toLocaleString()}）。高単価セット提案を継続してグループを牽引しましょう！`;
                 }
             } else {
                 document.getElementById('radarSub').innerText = `選択対象: 全体集計 (${sorted.length}名)`;
