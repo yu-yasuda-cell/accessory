@@ -22,7 +22,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">実績データ同期中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">実績データ完全同期中...</p>
     </div>
 
     <!-- Header -->
@@ -45,7 +45,7 @@
                 <div class="text-right hidden sm:block">
                     <p class="text-xs text-slate-400">連携ステータス</p>
                     <p class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> スプレッドシートLIVE完全連動中
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 4タブLIVE完全連動中
                     </p>
                 </div>
             </div>
@@ -220,34 +220,34 @@
                     }
                 }
 
-                // 2. 個人実績タブ解析（画像5枚目のアルファベット順に厳密適合）
+                // 2. 個人実績タブ解析（正確な構造・6行目以降から読み込み）
                 const pLines = textPersonal.split(/\r?\n/).filter(l => l.trim() !== '');
                 rawPersonalData = [];
                 storeTotalSalesMap = {};
 
-                for (let i = 0; i < pLines.length; i++) {
+                // 6行目以降（インデックス 5 以降）から実データを読み込み
+                const startIndex = pLines.length > 5 ? 5 : 1;
+
+                for (let i = startIndex; i < pLines.length; i++) {
                     const row = parseCSVLine(pLines[i]);
                     
-                    // スクショ画像5枚目の構造に厳密マッピング:
-                    // A列 (index 0): 所属営業G名
-                    // B列 (index 1): 担当者CD
-                    // C列 (index 2): 担当者名（例: 関井 誠）
-                    // D列 (index 3): 所属部門CD（例: 3009）
-                    // E列 (index 4): 所属部門名（例: 新宿東口中央通）
-                    // I列 (index 8): アクセサリ売上金額（例: 248,078）
-                    // J列 (index 9): アクセサリ総販単価（例: 49,616）
-                    // L列 (index 11): 全総販購入個数
+                    // 正しい列マッピング:
+                    // B列 (row[1]): 所属エリア（例: 東京第1G）
+                    // C列 (row[2]): 担当者CD（無視）
+                    // D列 (row[3]): 担当者名（例: 関井 誠）
+                    // E列 (row[4]): 所属部門名/店舗名（例: 新宿東口中央通）
+                    // I列 (row[8]): アクセサリ売上金額（例: 248,078）
+                    // J列 (row[9]): アクセサリ総販単価（例: 49,616）
+                    // K列 (row[10]): 全全社平均比較 差分
+                    // L列 (row[11]): 全総販購入個数
 
-                    if (row.length >= 5) {
-                        const area = row[0] ? row[0].trim() : '';
-                        const name = row[2] ? row[2].trim() : '';
+                    if (row.length >= 4) {
+                        const area = row[1] ? row[1].trim() : (row[0] ? row[0].trim() : '');
+                        const name = row[3] ? row[3].trim() : '';
                         const store = row[4] ? row[4].trim() : '';
 
-                        // ヘッダー見出し行（「担当者名」「担当者CD」等）および数値コード行をスキップ
-                        const isHeader = name.includes('担当者') || name.includes('氏名') || name.includes('BP平均') || name.includes('CD');
-                        const isNumeric = !isNaN(Number(name.replace(/\s+/g, '')));
-
-                        if (name && !isHeader && !isNumeric) {
+                        // 本物の担当者名が存在する行だけ抽出
+                        if (name && !name.includes('担当者名') && !name.includes('氏名') && name !== '0' && isNaN(Number(name.replace(/\s+/g, '')))) {
                             const sales = parseFloat((row[8] || '0').replace(/[￥,]/g, '')) || 0;
                             const price = parseFloat((row[9] || '0').replace(/[￥,]/g, '')) || 0;
                             const diff = parseFloat((row[10] || '0').replace(/[￥,]/g, '')) || 0;
@@ -382,7 +382,7 @@
 
             const sorted = [...filtered].sort((a, b) => (b[activeSortKey] || 0) - (a[activeSortKey] || 0));
 
-            // ランキングカード構築
+            // ランキングカード構築（デザイン完全維持）
             const container = document.getElementById('rankingContainer');
             container.innerHTML = '';
 
