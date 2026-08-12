@@ -10,38 +10,41 @@
     <style>
         body { font-family: 'Plus Jakarta Sans', 'Noto Sans JP', sans-serif; }
         .kando-bg { background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #311042 100%); }
+        .kando-card-gold { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 2px solid #f59e0b; }
+        .kando-card-silver { background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 2px solid #94a3b8; }
+        .kando-card-bronze { background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%); border: 2px solid #f97316; }
+        .glow-gold { box-shadow: 0 0 20px rgba(245, 158, 11, 0.3); }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen">
 
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">4タブ統合・分析エンジン起動中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse" id="loadingText">初期化中...</p>
     </div>
 
-    <!-- ヘッダーとフィルターUIはそのまま維持 -->
-    <header class="kando-bg border-b border-purple-900 p-4 sticky top-0 z-50">
-        <h1 class="text-xl font-black text-amber-300">アクセサリーマスター！ 〜完全連携版〜</h1>
+    <header class="kando-bg border-b border-purple-900 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3"><h1 class="text-xl font-black text-amber-300">アクセサリーマスター！ 〜完全連携版〜</h1></div>
     </header>
 
     <main class="max-w-7xl mx-auto p-4 space-y-6">
-        <section class="bg-slate-800 rounded-xl p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+        <section class="bg-slate-800 rounded-xl p-4 grid grid-cols-1 md:grid-cols-4 gap-3 border border-slate-700">
             <select id="groupSelect" onchange="filterData()" class="bg-slate-900 border border-slate-700 p-2 text-sm text-slate-200"><option value="ALL">全エリア</option></select>
             <select id="storeSelect" onchange="filterData()" class="bg-slate-900 border border-slate-700 p-2 text-sm text-slate-200"><option value="ALL">全店舗</option></select>
             <select id="crewSelect" onchange="updateView()" class="bg-slate-900 border border-slate-700 p-2 text-sm text-slate-200"><option value="ALL">全員</option></select>
             <select id="metricSelect" onchange="updateView()" class="bg-slate-900 border border-slate-700 p-2 text-sm text-amber-300 font-bold">
-                <option value="sales">💰 売上金額</option>
-                <option value="price">🏷️ 単価</option>
-                <option value="targetRate">🎯 達成率/寄与率</option>
-                <option value="itemTotal">📦 商材獲得数</option>
+                <option value="sales">アクセサリ売上</option>
+                <option value="price">アクセサリ単価</option>
+                <option value="targetRate">目標達成率</option>
+                <option value="diff">全社平均差分</option>
             </select>
         </section>
 
         <div id="rankingContainer" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
 
         <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-slate-800 rounded-xl p-5"><canvas id="radarChart" class="h-64"></canvas></div>
-            <div class="bg-slate-800 rounded-xl p-5"><canvas id="barChart" class="h-64"></canvas></div>
+            <div class="bg-slate-800 rounded-xl p-5 border border-slate-700"><canvas id="radarChart" class="h-64"></canvas></div>
+            <div class="bg-slate-800 rounded-xl p-5 border border-slate-700"><canvas id="barChart" class="h-64"></canvas></div>
         </section>
     </main>
 
@@ -50,59 +53,136 @@
             target: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=0&single=true&output=csv",
             personal: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=288066209&single=true&output=csv"
         };
-        
+
         let rawPersonalData = [];
         let storeTargetMap = {};
         let radarChart, barChart;
 
-        window.onload = async function() {
-            try {
-                // 4タブ分の読み込みを並列処理するロジック
-                const [resTarget, resPersonal] = await Promise.all([fetch(CSV_URLS.target), fetch(CSV_URLS.personal)]);
-                const textTarget = await resTarget.text();
-                const textPersonal = await resPersonal.text();
+        async function init() {
+            document.getElementById('loadingText').innerText = "目標データ取得中...";
+            await loadTargetData();
+            document.getElementById('loadingText').innerText = "個人実績データ取得中...";
+            await loadPersonalData();
+            
+            document.getElementById('loading').classList.add('hidden');
+            initCharts();
+            populateDropdowns();
+            filterData();
+        }
 
-                // 1. 目標タブ解析
-                const tLines = textTarget.split('\n');
-                for(let line of tLines) {
-                    const row = parseCSVLine(line);
-                    if(row.length > 5) storeTargetMap[row[1] || row[0]] = parseFloat(row[5].replace(/[￥,]/g, ''));
+        async function loadTargetData() {
+            const res = await fetch(CSV_URLS.target);
+            const text = await res.text();
+            const lines = text.split('\n');
+            for(let line of lines) {
+                const row = parseCSV(line);
+                if(row.length > 5) {
+                    const storeName = row[1] || row[0];
+                    const target = parseFloat(row[5].replace(/[￥,]/g, '')) || 0;
+                    storeTargetMap[storeName] = target;
                 }
+            }
+        }
 
-                // 2. 個人実績タブ解析（画像構造に合わせる）
-                const pLines = textPersonal.split('\n');
-                for(let i=1; i<pLines.length; i++) {
-                    const row = parseCSVLine(pLines[i]);
-                    if(row.length < 10) continue;
-                    
-                    const name = row[2]; // C列
-                    if(name && isNaN(Number(name))) {
-                        const sales = parseFloat(row[7].replace(/[￥,]/g, '')) || 0;
-                        const itemTotal = parseFloat(row[10].replace(/[￥,]/g, '')) || 0;
-                        rawPersonalData.push({
-                            area: row[0], name: name, store: row[3],
-                            sales: sales, price: parseFloat(row[8].replace(/[￥,]/g, '')) || 0,
-                            diff: parseFloat(row[9].replace(/[￥,]/g, '')) || 0,
-                            itemTotal: itemTotal,
-                            targetRate: (storeTargetMap[row[3]] ? Math.round((sales / storeTargetMap[row[3]]) * 100) : 0),
-                            itemScores: [itemTotal*0.3, itemTotal*0.25, itemTotal*0.15, itemTotal*0.15, itemTotal*0.1, itemTotal*0.05]
-                        });
-                    }
-                }
+        async function loadPersonalData() {
+            const res = await fetch(CSV_URLS.personal);
+            const text = await res.text();
+            const lines = text.split('\n');
+            
+            for(let i=1; i<lines.length; i++) {
+                const row = parseCSV(lines[i]);
+                if(row.length < 11) continue;
                 
-                // 3. UI構築
-                initCharts();
-                populateDropdowns();
-                filterData();
-                document.getElementById('loading').classList.add('hidden');
-            } catch(e) { console.error(e); }
-        };
+                // 画像より：A=0, C=2, D=3, H=7, I=8, J=9, K=10
+                const name = row[2];
+                if(name && isNaN(Number(name))) {
+                    const sales = parseFloat(row[7].replace(/[￥,]/g, '')) || 0;
+                    const itemTotal = parseFloat(row[10].replace(/[￥,]/g, '')) || 0;
+                    
+                    rawPersonalData.push({
+                        area: row[0],
+                        name: name,
+                        store: row[3],
+                        sales: sales,
+                        price: parseFloat(row[8].replace(/[￥,]/g, '')) || 0,
+                        diff: parseFloat(row[9].replace(/[￥,]/g, '')) || 0,
+                        itemTotal: itemTotal,
+                        targetRate: storeTargetMap[row[3]] ? Math.round((sales / storeTargetMap[row[3]]) * 100) : 0,
+                        scores: [itemTotal*0.3, itemTotal*0.25, itemTotal*0.15, itemTotal*0.15, itemTotal*0.1, itemTotal*0.05]
+                    });
+                }
+            }
+        }
 
-        function parseCSVLine(line) { /* ...解析ロジック維持... */ }
-        function populateDropdowns() { /* ...維持... */ }
-        function filterData() { /* ...維持... */ }
-        function updateView() { /* ...ランキング生成・グラフ描画ロジック維持... */ }
-        function initCharts() { /* ...チャート維持... */ }
+        function parseCSV(line) {
+            const res = []; let current = ''; let inQuotes = false;
+            for(let char of line) {
+                if(char === '"') inQuotes = !inQuotes;
+                else if(char === ',' && !inQuotes) { res.push(current.trim()); current = ''; }
+                else current += char;
+            }
+            res.push(current.trim()); return res;
+        }
+
+        function populateDropdowns() {
+            const g = document.getElementById('groupSelect');
+            const areas = [...new Set(rawPersonalData.map(d => d.area))];
+            areas.forEach(a => g.innerHTML += `<option value="${a}">${a}</option>`);
+        }
+
+        function filterData() {
+            const area = document.getElementById('groupSelect').value;
+            const filtered = area === 'ALL' ? rawPersonalData : rawPersonalData.filter(d => d.area === area);
+            
+            const s = document.getElementById('storeSelect');
+            s.innerHTML = '<option value="ALL">全店舗</option>';
+            [...new Set(filtered.map(d => d.store))].forEach(st => s.innerHTML += `<option value="${st}">${st}</option>`);
+            updateCrewList(filtered);
+            updateView();
+        }
+
+        function updateCrewList(filtered) {
+            const store = document.getElementById('storeSelect').value;
+            const data = store === 'ALL' ? filtered : filtered.filter(d => d.store === store);
+            const c = document.getElementById('crewSelect');
+            c.innerHTML = '<option value="ALL">全員</option>';
+            [...new Set(data.map(d => d.name))].forEach(name => c.innerHTML += `<option value="${name}">${name}</option>`);
+        }
+
+        function updateView() {
+            const area = document.getElementById('groupSelect').value;
+            const store = document.getElementById('storeSelect').value;
+            const crew = document.getElementById('crewSelect').value;
+            const metric = document.getElementById('metricSelect').value;
+
+            let list = rawPersonalData;
+            if (area !== 'ALL') list = list.filter(d => d.area === area);
+            if (store !== 'ALL') list = list.filter(d => d.store === store);
+            if (crew !== 'ALL') list = list.filter(d => d.name === crew);
+
+            const container = document.getElementById('rankingContainer');
+            container.innerHTML = '';
+            
+            list.sort((a,b) => b[metric] - a[metric]).slice(0,3).forEach((item, i) => {
+                container.innerHTML += `
+                    <div class="kando-card-gold rounded-xl p-4 bg-slate-800 border border-slate-700">
+                        <div class="text-xs font-bold text-amber-800">${i+1}位</div>
+                        <h3 class="font-black text-lg">${item.name}</h3>
+                        <p class="text-sm">売上: ￥${item.sales.toLocaleString()}</p>
+                    </div>`;
+            });
+            
+            // グラフ更新処理もここに詳細を記述...
+        }
+
+        function initCharts() {
+            const labels = ['ケース', 'フィルム', 'SD', 'コーティング', '充電器', 'オーディオ'];
+            const data = [10, 10, 10, 10, 10, 10];
+            radarChart = new Chart(document.getElementById('radarChart'), { type: 'radar', data: { labels, datasets: [{ data, backgroundColor: '#f59e0b' }] } });
+            barChart = new Chart(document.getElementById('barChart'), { type: 'bar', data: { labels, datasets: [{ data, backgroundColor: '#f59e0b' }] } });
+        }
+
+        init(); // 起動
     </script>
 </body>
 </html>
