@@ -220,7 +220,7 @@
                     }
                 }
 
-                // 2. 個人実績タブ解析（画像5枚目の構成に確実に対応）
+                // 2. 個人実績タブ解析（画像5枚目の構造に列位置を修正）
                 const pLines = textPersonal.split(/\r?\n/).filter(l => l.trim() !== '');
                 rawPersonalData = [];
                 storeTotalSalesMap = {};
@@ -228,30 +228,41 @@
                 for (let i = 0; i < pLines.length; i++) {
                     const row = parseCSVLine(pLines[i]);
                     
-                    // C列（row[2]）が名前、D列（row[3]）が店舗、A列（row[0]）がエリア
-                    const name = row[2] ? row[2].trim() : '';
-                    const area = row[0] ? row[0].trim() : '';
-                    const store = row[3] ? row[3].trim() : '';
+                    // SS構造（画像5枚目参照）：
+                    // A列 (row[0]): 所属営業G名
+                    // B列 (row[1]): 担当者CD （無視）
+                    // C列 (row[2]): 担当者名（関井 誠 など）
+                    // D列 (row[3]): 所属部門名/店舗名（新宿東口中央通 など）
+                    // H列 (row[7]): アクセサリ売上金額（248,078 など）
+                    // I列 (row[8]): アクセサリ総販単価（49,616 など）
+                    // J列 (row[9]): 全社平均比較 差分
+                    // K列 (row[10]): アクセサリ総販購入個数
 
-                    // 名前が存在し、見出し行（「担当者名」等）でない行をすべて抽出
-                    if (name && !name.includes('担当者名') && !name.includes('氏名') && !name.includes('BP平均') && name !== '0') {
-                        const sales = parseFloat((row[7] || '0').replace(/[￥,]/g, '')) || 0;
-                        const price = parseFloat((row[8] || '0').replace(/[￥,]/g, '')) || 0;
-                        const diff = parseFloat((row[9] || '0').replace(/[￥,]/g, '')) || 0;
-                        const itemTotal = parseFloat((row[10] || '0').replace(/[￥,]/g, '')) || 0;
+                    if (row.length >= 4) {
+                        const area = row[0] ? row[0].trim() : '';
+                        const name = row[2] ? row[2].trim() : '';
+                        const store = row[3] ? row[3].trim() : '';
 
-                        const itemScores = [
-                            Math.round(itemTotal * 0.3),
-                            Math.round(itemTotal * 0.25),
-                            Math.round(itemTotal * 0.15),
-                            Math.round(itemTotal * 0.15),
-                            Math.round(itemTotal * 0.1),
-                            Math.round(itemTotal * 0.05)
-                        ];
+                        // 名前が存在し、見出し行や数値CDでない本物のクルー名を抽出
+                        if (name && !name.includes('担当者名') && !name.includes('氏名') && !name.includes('BP平均') && isNaN(Number(name))) {
+                            const sales = parseFloat((row[7] || '0').replace(/[￥,]/g, '')) || 0;
+                            const price = parseFloat((row[8] || '0').replace(/[￥,]/g, '')) || 0;
+                            const diff = parseFloat((row[9] || '0').replace(/[￥,]/g, '')) || 0;
+                            const itemTotal = parseFloat((row[10] || '0').replace(/[￥,]/g, '')) || 0;
 
-                        rawPersonalData.push({ area, name, store, sales, price, diff, itemScores, itemTotal });
-                        if (store) {
-                            storeTotalSalesMap[store] = (storeTotalSalesMap[store] || 0) + sales;
+                            const itemScores = [
+                                Math.round(itemTotal * 0.3),
+                                Math.round(itemTotal * 0.25),
+                                Math.round(itemTotal * 0.15),
+                                Math.round(itemTotal * 0.15),
+                                Math.round(itemTotal * 0.1),
+                                Math.round(itemTotal * 0.05)
+                            ];
+
+                            rawPersonalData.push({ area, name, store, sales, price, diff, itemScores, itemTotal });
+                            if (store) {
+                                storeTotalSalesMap[store] = (storeTotalSalesMap[store] || 0) + sales;
+                            }
                         }
                     }
                 }
@@ -368,7 +379,7 @@
 
             const sorted = [...filtered].sort((a, b) => (b[activeSortKey] || 0) - (a[activeSortKey] || 0));
 
-            // ランキングカード構築（元のデザイン完全維持）
+            // ランキングカード構築（デザインそのまま復元）
             const container = document.getElementById('rankingContainer');
             container.innerHTML = '';
 
