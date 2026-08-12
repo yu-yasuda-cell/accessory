@@ -22,7 +22,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">実績データ連動中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">スプレッドシートデータ連携中...</p>
     </div>
 
     <!-- Header -->
@@ -151,16 +151,21 @@
     </main>
 
     <script>
-        const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?output=csv";
+        const CSV_URLS = {
+            target: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCqHFk-1fPBdW2-UAxLZIZH0amTHrCqrtJpplQcant2rCXg1P32jpJdFxJ2j2sShgjJfJOrzHFDd6/pub?gid=1769594442&single=true&output=csv",
+            store: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCqHFk-1fPBdW2-UAxLZIZH0amTHrCqrtJpplQcant2rCXg1P32jpJdFxJ2j2sShgjJfJOrzHFDd6/pub?gid=21976197&single=true&output=csv",
+            qv: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCqHFk-1fPBdW2-UAxLZIZH0amTHrCqrtJpplQcant2rCXg1P32jpJdFxJ2j2sShgjJfJOrzHFDd6/pub?gid=1867085840&single=true&output=csv",
+            personal: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRyCqHFk-1fPBdW2-UAxLZIZH0amTHrCqrtJpplQcant2rCXg1P32jpJdFxJ2j2sShgjJfJOrzHFDd6/pub?gid=566840329&single=true&output=csv"
+        };
+
         let rawPersonalData = [];
         let radarChart, lineChart;
 
         window.onload = function() {
             initCharts();
-            loadCSVData();
+            loadAllCSVData();
         };
 
-        // CSV一行を正しく分割する関数（カンマ区切り＋クォート考慮）
         function parseCSVLine(line) {
             const result = [];
             let current = '';
@@ -180,26 +185,28 @@
             return result;
         }
 
-        async function loadCSVData() {
+        async function loadAllCSVData() {
             try {
-                const response = await fetch(CSV_URL);
-                const text = await response.text();
-                
-                const lines = text.split('\n');
+                // 個人実績データの取得とパース
+                const resPersonal = await fetch(CSV_URLS.personal);
+                const textPersonal = await resPersonal.text();
+                const lines = textPersonal.split('\n');
+
                 rawPersonalData = [];
 
                 for (let i = 0; i < lines.length; i++) {
                     const row = parseCSVLine(lines[i]);
-                    // 名前(インデックス3)が存在し、ヘッダー行などでないこと
-                    if (row.length > 3 && row[3] && row[3] !== '担当者名' && row[3] !== 'BP平均') {
+                    if (row.length > 3) {
                         const area = row[1] || '';
                         const name = row[3] || '';
                         const store = row[5] || '';
                         const sales = parseFloat((row[11] || '').replace(/,/g, '')) || 0;
                         const price = parseFloat((row[12] || '').replace(/,/g, '')) || 0;
+                        const diff = parseFloat((row[13] || '').replace(/,/g, '')) || 0;
 
-                        if (name !== '' && name !== 'NaN') {
-                            rawPersonalData.push({ area, name, store, sales, price });
+                        // ヘッダーや不要行を除外して追加
+                        if (name && name !== '担当者名' && name !== 'BP平均' && name !== '0' && name !== 'NaN') {
+                            rawPersonalData.push({ area, name, store, sales, price, diff });
                         }
                     }
                 }
@@ -208,9 +215,10 @@
                 filterData();
                 document.getElementById('loading').classList.add('hidden');
             } catch (err) {
-                console.error("CSV読み込みエラー:", err);
+                console.error("データ読み込みエラー:", err);
                 document.getElementById('loading').innerHTML = `
                     <p class="text-rose-400 font-bold">データ読み込みエラーが発生しました。</p>
+                    <p class="text-xs text-slate-400">スプレッドシートの公開設定をご確認ください。</p>
                 `;
             }
         }
@@ -319,7 +327,7 @@
                 const crewObj = sorted.find(c => c.name === selectedCrew);
                 if (crewObj) {
                     document.getElementById('radarSub').innerText = `選択対象: ${crewObj.store} / ${crewObj.name}`;
-                    document.getElementById('aiAdvice').innerHTML = `単価 <strong>￥${crewObj.price.toLocaleString()}</strong>！高単価セット提案を継続してグループを牽引しましょう！`;
+                    document.getElementById('aiAdvice').innerHTML = `単価 <strong>￥${crewObj.price.toLocaleString()}</strong>（差分：￥${crewObj.diff.toLocaleString()}）！高単価セット提案を継続してグループを牽引しましょう！`;
                 }
             } else {
                 document.getElementById('radarSub').innerText = `選択対象: 全体集計 (${sorted.length}名)`;
