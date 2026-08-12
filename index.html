@@ -27,7 +27,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">目標(T列) ＆ 現状(FX列) 直接達成率同期中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">高度AI分析エンジン ＆ 実績データ分析中...</p>
     </div>
 
     <!-- Header -->
@@ -50,7 +50,7 @@
                 <div class="text-right hidden sm:block">
                     <p class="text-xs text-slate-400">連携ステータス</p>
                     <p class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> T列(目標) FX列(現状) 完全適合連動中
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> AI戦術生成エンジン完全LIVE連動中
                     </p>
                 </div>
             </div>
@@ -146,12 +146,13 @@
                         <canvas id="radarChart"></canvas>
                     </div>
                 </div>
-                <!-- ⚔️ SELECTION攻略アドバイス -->
-                <div class="mt-4 bg-purple-950/60 border border-purple-800/60 rounded-xl p-3.5 text-xs shadow-inner">
-                    <p class="font-black text-amber-300 mb-1 flex items-center gap-1">
-                        <span>⚔️</span> SELECTION攻略分析レポート
+                <!-- ⚔️ SELECTION攻略アドバイス（AI高度戦術レポート） -->
+                <div class="mt-4 bg-purple-950/70 border border-purple-700/60 rounded-xl p-4 text-xs shadow-xl backdrop-blur-md">
+                    <p class="font-black text-amber-300 mb-2.5 flex items-center justify-between border-b border-purple-800/80 pb-2">
+                        <span class="flex items-center gap-1.5 text-sm"><span>⚔️</span> SELECTION AI高度攻略レポート</span>
+                        <span class="text-[10px] font-normal text-purple-300 bg-purple-900/60 border border-purple-700/50 px-2 py-0.5 rounded-full">リアルタイム診断</span>
                     </p>
-                    <div class="text-purple-100 leading-relaxed space-y-1" id="aiAdvice">
+                    <div class="text-purple-100 leading-relaxed space-y-2.5" id="aiAdvice">
                         データ分析中...
                     </div>
                 </div>
@@ -257,7 +258,7 @@
                 const textStore = await resStore.text();
                 const textPersonal = await resPersonal.text();
 
-                // 1. 目標タブ解析（T列 = 目標値）
+                // 1. 目標タブ解析（T列＝19）
                 const targetLines = textTarget.split(/\r?\n/);
                 storeTargetMap = {};
                 const idxT = col2idx('T'); // 19
@@ -267,14 +268,16 @@
                     if (row.length > 2) {
                         const rawStoreName = row[1] || row[0] || '';
                         const normName = normalizeStoreName(rawStoreName);
-                        // T列（インデックス19）または存在列から目標値を抽出
-                        const targetVal = parseNum(row[idxT] || row[19] || row[5] || row[4] || '');
-                        if (normName) storeTargetMap[normName] = targetVal;
-                        if (rawStoreName) storeTargetMap[rawStoreName] = targetVal;
+                        const targetVal = parseNum(row[idxT] || row[19] || '');
+                        
+                        if (targetVal > 0) {
+                            if (normName) storeTargetMap[normName] = targetVal;
+                            if (rawStoreName) storeTargetMap[rawStoreName] = targetVal;
+                        }
                     }
                 }
 
-                // 2. 店舗別累計タブ解析（FX列 = 現状売上, FY列 = 総販単価）
+                // 2. 店舗別累計タブ解析（FX列＝現状売上, FY列＝総販単価）
                 const storeLines = textStore.split(/\r?\n/).filter(l => l.trim() !== '');
                 storeTabMetricsMap = {};
 
@@ -286,8 +289,8 @@
                 const idxMD = col2idx('MD');
                 const idxLN = col2idx('LN');
                 const idxLU = col2idx('LU');
-                const idxFX = col2idx('FX'); // 現状売上
-                const idxFY = col2idx('FY'); // 単価
+                const idxFX = col2idx('FX');
+                const idxFY = col2idx('FY');
 
                 let idxStoreName = 2;
 
@@ -318,8 +321,8 @@
                                 denom > 0 ? Math.round((numLU / denom) * 1000) / 10 : 0
                             ];
 
-                            const salesVal = parseNum(row[idxFX]); // FX列
-                            const priceVal = parseNum(row[idxFY]); // FY列
+                            const salesVal = parseNum(row[idxFX]);
+                            const priceVal = parseNum(row[idxFY]);
 
                             const objData = { denom, rates, sales: salesVal, price: priceVal };
                             storeTabMetricsMap[stName] = objData;
@@ -384,22 +387,19 @@
                     companyGlobalItemAvg = globalItemSum.map(sum => Math.round((sum / rawPersonalData.length) * 10) / 10);
                 }
 
-                // 🎯 正確な店舗達成率計算（FX列:現状売上 ÷ T列:目標値）
+                // 店舗達成率の精密計算
                 rawPersonalData.forEach(item => {
                     const normSt = normalizeStoreName(item.store);
                     const stData = storeTabMetricsMap[item.store] || storeTabMetricsMap[normSt];
                     
-                    // 店舗現状売上 (FX列が存在すればFX列、無ければ個人実績合計)
                     const stCurrentSales = (stData && stData.sales > 0) ? stData.sales : (storeTotalSalesMap[item.store] || item.sales);
-                    
-                    // 店舗目標値 (T列からダイレクト取得)
                     const stTargetVal = storeTargetMap[normSt] || storeTargetMap[item.store] || 0;
 
                     if (stTargetVal > 0) {
                         item.storeTargetRate = Math.round((stCurrentSales / stTargetVal) * 100);
                         item.storeContributionRate = Math.round((item.sales / stTargetVal) * 100);
                     } else {
-                        item.storeTargetRate = 100;
+                        item.storeTargetRate = 0;
                         item.storeContributionRate = stCurrentSales > 0 ? Math.round((item.sales / stCurrentSales) * 100) : 0;
                     }
                 });
@@ -627,7 +627,7 @@
 
             } else if (selectedStore !== 'ALL') {
                 subjectName = selectedStore;
-                badge.innerText = "🏪 店舗精密切算モード (CP+CQ分母)";
+                badge.innerText = "🏪 店舗分析モード";
                 radarSub.innerText = `選択店舗: ${selectedStore}`;
                 barSub.innerText = `${selectedStore} のSELECTION販売率 (%)`;
 
@@ -668,7 +668,7 @@
 
                 const areaAvgScores = [0,0,0,0,0,0];
                 activeList.forEach(item => { for(let k=0; k<6; k++) areaAvgScores[k] += (item.itemScores[k]||0); });
-                currentScores = areaAvgScores.map(v => activeList.length ? Math.round((v / activeList.length) * 10) / 10 : 0);
+                currentScores = areaAvgScores.map(v => activeList.length ? Math.round((v / areaAvgScores.length) * 10) / 10 : 0);
                 targetScores = realCompanyAvg;
                 targetLabelName = "全社平均";
             }
@@ -686,10 +686,11 @@
             radarChart.update();
             barChart.update();
 
-            generateAiAdvice(subjectName, currentScores, targetScores, itemLabels, aiAdvice);
+            generateAiAdvice(subjectName, currentScores, targetScores, itemLabels, aiAdvice, targetLabelName);
         }
 
-        function generateAiAdvice(subjectName, currentScores, targetScores, labels, containerEl) {
+        // ⚔️ AI高度攻略分析エンジンの文章自動生成
+        function generateAiAdvice(subjectName, currentScores, targetScores, labels, containerEl, targetLabelName) {
             let maxDiff = -999;
             let minDiff = 999;
             let bestIdx = 0;
@@ -711,13 +712,43 @@
             const worstItem = labels[worstIdx];
             const bestVal = currentScores[bestIdx];
             const worstVal = currentScores[worstIdx];
+            const targetBestVal = targetScores[bestIdx];
+            const targetWorstVal = targetScores[worstIdx];
+
             const bestDiffStr = maxDiff >= 0 ? `+${Math.round(maxDiff * 10) / 10}%` : `${Math.round(maxDiff * 10) / 10}%`;
             const worstDiffStr = minDiff >= 0 ? `+${Math.round(minDiff * 10) / 10}%` : `${Math.round(minDiff * 10) / 10}%`;
 
+            // 商材に応じた戦術アクションアドバイス集
+            const actionGuides = {
+                'ﾌｨﾙﾑ購入率': '端末お渡し直後の「ファーストお声がけ」を徹底し、実機保護の重要性をセットでアプローチするのが有効です。',
+                'ｺｰﾃｨﾝｸﾞ購入率': 'ガラスフィルムとのセット提案（ダブル保護）や、ケース非装着派のお客様へ「ガラス本来の美しさを保つ」メリットをお伝えしましょう。',
+                'ｽﾄﾚｰｼﾞ購入率': '写真・動画の容量不足やデータ移行の悩みに触れ、クラウドとSDカードの併用による「ローカル安心保存」を提案しましょう。',
+                'PhotoCube購入率': '「充電しながら自動で写真バックアップができる」簡便さをアプローチし、パソコン操作が苦手なお客様へ強くお勧めしましょう。',
+                'GaN購入率': '最新スマホの「充電器別売り問題」をフックにし、小型軽量で超高速充電できるGaN（窒化ガリウム）の快適性を体感してもらいましょう。',
+                'GLIDiC購入率': '音楽・動画鑑賞やWeb通話での利便性をアピールし、店頭での試聴や「ワイヤレスによるストレスフリー体験」を直接お伝えしましょう。'
+            };
+
+            const specificAction = actionGuides[worstItem] || 'お客様のスマホ利用シーンに合わせた体験型アプローチを強化しましょう。';
+
             let adviceText = `
-                <p><strong>【${subjectName} のSELECTION精密分析】</strong></p>
-                <p>🌟 <strong>強み商材</strong>：<span class="text-amber-300 font-bold">${bestItem} (${bestVal}%)</span> が比較対象に対して <span class="text-emerald-400 font-bold">${bestDiffStr}</span> と非常に高い販売率です！この提案アプローチを継続・横展開しましょう。</p>
-                <p>🎯 <strong>注力ポイント</strong>：<span class="text-pink-300 font-bold">${worstItem} (${worstVal}%)</span> が比較に対して <span class="text-rose-400 font-bold">${worstDiffStr}</span> のギャップがあります。この商材のセット提案・お声がけを徹底することで全体率の底上げが期待できます！</p>
+                <div class="space-y-2">
+                    <p class="font-bold text-amber-200">📊 診断対象：<span class="text-white">${subjectName}</span> （比較対照：${targetLabelName}）</p>
+                    
+                    <div class="bg-emerald-950/60 border border-emerald-700/50 p-2.5 rounded-lg">
+                        <p class="font-bold text-emerald-300 flex items-center gap-1">🌟 牽引強み商材：${bestItem}</p>
+                        <p class="text-[11px] text-slate-200 mt-0.5">実績 <span class="font-bold text-amber-300">${bestVal}%</span> （比較: ${targetBestVal}% / 差分 <span class="font-bold text-emerald-400">${bestDiffStr}</span>）。非常に高い獲得率を維持しています！この成功トークをチーム内へ横展開しましょう。</p>
+                    </div>
+
+                    <div class="bg-rose-950/60 border border-rose-700/50 p-2.5 rounded-lg">
+                        <p class="font-bold text-rose-300 flex items-center gap-1">🎯 最優先注力商材：${worstItem}</p>
+                        <p class="text-[11px] text-slate-200 mt-0.5">実績 <span class="font-bold text-amber-300">${worstVal}%</span> （比較: ${targetWorstVal}% / 差分 <span class="font-bold text-rose-400">${worstDiffStr}</span>）。この商材の引き上げが単価アップの最大の鍵となります。</p>
+                    </div>
+
+                    <div class="bg-amber-950/50 border border-amber-700/50 p-2.5 rounded-lg">
+                        <p class="font-bold text-amber-300 flex items-center gap-1">💡 明日からの具体的戦術アドバイス</p>
+                        <p class="text-[11px] text-amber-100 mt-0.5">${specificAction}</p>
+                    </div>
+                </div>
             `;
 
             containerEl.innerHTML = adviceText;
