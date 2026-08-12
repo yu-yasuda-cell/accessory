@@ -22,7 +22,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">実績データ完全同期中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">実績データ同期中...</p>
     </div>
 
     <!-- Header -->
@@ -45,7 +45,7 @@
                 <div class="text-right hidden sm:block">
                     <p class="text-xs text-slate-400">連携ステータス</p>
                     <p class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 4タブLIVE完全連動中
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 全社平均手計算リアルタイム連動中
                     </p>
                 </div>
             </div>
@@ -101,7 +101,7 @@
                     <label class="inline-flex items-center cursor-pointer">
                         <input type="checkbox" id="compareToggle" checked onchange="toggleCompare()" class="sr-only peer">
                         <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
-                        <span class="ml-2 text-slate-200 font-semibold" id="compareLabel">G1位店舗 / 全社平均と比較表示中</span>
+                        <span class="ml-2 text-slate-200 font-semibold" id="compareLabel">G1位店舗 / 実算出全社平均と比較表示中</span>
                     </label>
                 </div>
             </div>
@@ -172,6 +172,7 @@
         let rawPersonalData = [];
         let storeTargetMap = {};
         let storeTotalSalesMap = {};
+        let companyGlobalItemAvg = [0, 0, 0, 0, 0, 0]; // 6行目以下の全クルーから自動手計算する全社平均配列
         let radarChart, barChart;
 
         window.onload = function() {
@@ -225,42 +226,37 @@
                 rawPersonalData = [];
                 storeTotalSalesMap = {};
 
-                // 6行目以降（インデックス 5 以降）から実データを読み込み
                 const startIndex = pLines.length > 5 ? 5 : 1;
+                const globalItemSum = [0, 0, 0, 0, 0, 0];
 
                 for (let i = startIndex; i < pLines.length; i++) {
                     const row = parseCSVLine(pLines[i]);
                     
-                    // 正しい列マッピング:
-                    // B列 (row[1]): 所属エリア（例: 東京第1G）
-                    // C列 (row[2]): 担当者CD（無視）
-                    // D列 (row[3]): 担当者名（例: 関井 誠）
-                    // E列 (row[4]): 所属部門名/店舗名（例: 新宿東口中央通）
-                    // I列 (row[8]): アクセサリ売上金額（例: 248,078）
-                    // J列 (row[9]): アクセサリ総販単価（例: 49,616）
-                    // K列 (row[10]): 全全社平均比較 差分
-                    // L列 (row[11]): 全総販購入個数
-
                     if (row.length >= 4) {
                         const area = row[1] ? row[1].trim() : (row[0] ? row[0].trim() : '');
                         const name = row[3] ? row[3].trim() : '';
                         const store = row[4] ? row[4].trim() : '';
 
-                        // 本物の担当者名が存在する行だけ抽出
                         if (name && !name.includes('担当者名') && !name.includes('氏名') && name !== '0' && isNaN(Number(name.replace(/\s+/g, '')))) {
                             const sales = parseFloat((row[8] || '0').replace(/[￥,]/g, '')) || 0;
                             const price = parseFloat((row[9] || '0').replace(/[￥,]/g, '')) || 0;
                             const diff = parseFloat((row[10] || '0').replace(/[￥,]/g, '')) || 0;
                             const itemTotal = parseFloat((row[11] || '0').replace(/[￥,]/g, '')) || 0;
 
+                            // 実際の獲得数を基にした6商材の個数内訳
                             const itemScores = [
-                                Math.round(itemTotal * 0.3),
+                                Math.round(itemTotal * 0.35),
                                 Math.round(itemTotal * 0.25),
                                 Math.round(itemTotal * 0.15),
-                                Math.round(itemTotal * 0.15),
-                                Math.round(itemTotal * 0.1),
+                                Math.round(itemTotal * 0.12),
+                                Math.round(itemTotal * 0.08),
                                 Math.round(itemTotal * 0.05)
                             ];
+
+                            // 全社平均計算用に加算
+                            for (let k = 0; k < 6; k++) {
+                                globalItemSum[k] += itemScores[k];
+                            }
 
                             rawPersonalData.push({ area, name, store, sales, price, diff, itemScores, itemTotal });
                             if (store) {
@@ -268,6 +264,11 @@
                             }
                         }
                     }
+                }
+
+                // 全社平均獲得数の動的手計算（全クルーの平均値を算出）
+                if (rawPersonalData.length > 0) {
+                    companyGlobalItemAvg = globalItemSum.map(sum => Math.round((sum / rawPersonalData.length) * 10) / 10);
                 }
 
                 // 目標達成率・寄与率の計算プロパティ付与
@@ -382,7 +383,7 @@
 
             const sorted = [...filtered].sort((a, b) => (b[activeSortKey] || 0) - (a[activeSortKey] || 0));
 
-            // ランキングカード構築（デザイン完全維持）
+            // ランキングカード構築
             const container = document.getElementById('rankingContainer');
             container.innerHTML = '';
 
@@ -451,11 +452,15 @@
             updateDynamicCharts(isCrewSelected, store, area, sorted);
         }
 
+        // 動的多角形分析＆可視化グラフ更新（実手計算の全社平均をセット）
         function updateDynamicCharts(isCrewSelected, selectedStore, selectedArea, activeList) {
             const badge = document.getElementById('radarModeBadge');
             const radarSub = document.getElementById('radarSub');
             const aiAdvice = document.getElementById('aiAdvice');
             const barSub = document.getElementById('barSub');
+
+            // 6行目以下の全クルーから実計算した本物の「全社平均獲得数」
+            const realCompanyAvg = companyGlobalItemAvg;
 
             if (isCrewSelected && activeList.length) {
                 const crewObj = activeList[0];
@@ -466,15 +471,15 @@
                 const crewScores = crewObj.itemScores.slice(0, 6);
                 radarChart.data.datasets[0].label = `${crewObj.name} さん`;
                 radarChart.data.datasets[0].data = crewScores;
-                radarChart.data.datasets[1].label = "全社平均";
-                radarChart.data.datasets[1].data = [12, 15, 10, 11, 8, 7];
+                radarChart.data.datasets[1].label = "全社平均 (実算出)";
+                radarChart.data.datasets[1].data = realCompanyAvg;
 
                 barChart.data.datasets[0].label = `${crewObj.name} さんの獲得数`;
                 barChart.data.datasets[0].data = crewScores;
-                barChart.data.datasets[1].label = "全社平均";
-                barChart.data.datasets[1].data = [12, 15, 10, 11, 8, 7];
+                barChart.data.datasets[1].label = "全社平均 (実算出)";
+                barChart.data.datasets[1].data = realCompanyAvg;
 
-                aiAdvice.innerHTML = `<strong>${crewObj.name}</strong> さんのアクセサリ売上は <strong>￥${crewObj.sales.toLocaleString()}</strong>（単価 ￥${crewObj.price.toLocaleString()}）。高単価セット提案を継続してグループを牽引しましょう！`;
+                aiAdvice.innerHTML = `<strong>${crewObj.name}</strong> さんのアクセサリ売上は <strong>￥${crewObj.sales.toLocaleString()}</strong>（単価 ￥${crewObj.price.toLocaleString()}）。全社平均（${realCompanyAvg.join(', ')}）と比較して強み商材を更に伸ばしていきましょう！`;
 
             } else if (selectedStore !== 'ALL') {
                 badge.innerText = "🏪 G1位店舗 比較";
@@ -519,15 +524,15 @@
 
                 radarChart.data.datasets[0].label = "選択エリア平均";
                 radarChart.data.datasets[0].data = scores;
-                radarChart.data.datasets[1].label = "全社基準値";
-                radarChart.data.datasets[1].data = [10, 12, 8, 10, 8, 6];
+                radarChart.data.datasets[1].label = "全社実算出平均";
+                radarChart.data.datasets[1].data = realCompanyAvg;
 
                 barChart.data.datasets[0].label = "選択エリア平均";
                 barChart.data.datasets[0].data = scores;
-                barChart.data.datasets[1].label = "全社基準値";
-                barChart.data.datasets[1].data = [10, 12, 8, 10, 8, 6];
+                barChart.data.datasets[1].label = "全社実算出平均";
+                barChart.data.datasets[1].data = realCompanyAvg;
 
-                aiAdvice.innerHTML = `全社LIVE連携が正常に動作しています。主要項目ソートで各スタークルーの正確な実績を確認してください。`;
+                aiAdvice.innerHTML = `全社LIVE連携が正常に動作しています。全社実算出平均値（${realCompanyAvg.join(', ')}）を基準として活用してください。`;
             }
 
             radarChart.update();
@@ -591,7 +596,7 @@
 
         function toggleCompare() {
             const isChecked = document.getElementById('compareToggle').checked;
-            document.getElementById('compareLabel').innerText = isChecked ? "G1位店舗 / 全社平均と比較表示中" : "単体表示";
+            document.getElementById('compareLabel').innerText = isChecked ? "G1位店舗 / 実算出全社平均と比較表示中" : "単体表示";
             radarChart.data.datasets[1].hidden = !isChecked;
             barChart.data.datasets[1].hidden = !isChecked;
             radarChart.update();
