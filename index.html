@@ -22,7 +22,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">4タブ完全データ動的解析中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">実績データ同期中...</p>
     </div>
 
     <!-- Header -->
@@ -45,7 +45,7 @@
                 <div class="text-right hidden sm:block">
                     <p class="text-xs text-slate-400">連携ステータス</p>
                     <p class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 4タブ完全LIVE連動中
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> スプレッドシートLIVE完全連動中
                     </p>
                 </div>
             </div>
@@ -61,7 +61,7 @@
                 <h2 class="text-sm font-bold text-amber-400 flex items-center gap-2">
                     <span>🔍</span> 実績データ検索 ＆ 多角分析ソート
                 </h2>
-                <span class="text-xs bg-emerald-900/60 text-emerald-300 px-2.5 py-1 rounded-full border border-emerald-700/40" id="dataStatus">解析初期化中...</span>
+                <span class="text-xs bg-emerald-900/60 text-emerald-300 px-2.5 py-1 rounded-full border border-emerald-700/40" id="dataStatus">解析中...</span>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
@@ -220,7 +220,7 @@
                     }
                 }
 
-                // 2. 個人実績タブ解析（画像5枚目の構造に厳密準拠）
+                // 2. 個人実績タブ解析（画像5枚目の構成に確実に対応）
                 const pLines = textPersonal.split(/\r?\n/).filter(l => l.trim() !== '');
                 rawPersonalData = [];
                 storeTotalSalesMap = {};
@@ -228,38 +228,29 @@
                 for (let i = 0; i < pLines.length; i++) {
                     const row = parseCSVLine(pLines[i]);
                     
-                    // SS構造（画像5枚目参照）：
-                    // A列: 所属営業G名 (row[0])
-                    // B列: 担当者CD (row[1])
-                    // C列: 担当者名 (row[2])
-                    // D列: 所属部門名/店舗名 (row[3])
-                    // H列: アクセサリ売上金額 (row[7])
-                    // I列: アクセサリ総販単価 (row[8])
-                    // J列: 全社平均比較 差分 (row[9])
-                    // K列: アクセサリ総販購入個数 (row[10])
+                    // C列（row[2]）が名前、D列（row[3]）が店舗、A列（row[0]）がエリア
+                    const name = row[2] ? row[2].trim() : '';
+                    const area = row[0] ? row[0].trim() : '';
+                    const store = row[3] ? row[3].trim() : '';
 
-                    if (row.length >= 8) {
-                        const area = row[0] ? row[0].trim() : '';
-                        const name = row[2] ? row[2].trim() : '';
-                        const store = row[3] ? row[3].trim() : '';
+                    // 名前が存在し、見出し行（「担当者名」等）でない行をすべて抽出
+                    if (name && !name.includes('担当者名') && !name.includes('氏名') && !name.includes('BP平均') && name !== '0') {
+                        const sales = parseFloat((row[7] || '0').replace(/[￥,]/g, '')) || 0;
+                        const price = parseFloat((row[8] || '0').replace(/[￥,]/g, '')) || 0;
+                        const diff = parseFloat((row[9] || '0').replace(/[￥,]/g, '')) || 0;
+                        const itemTotal = parseFloat((row[10] || '0').replace(/[￥,]/g, '')) || 0;
 
-                        // ヘッダー行や数値のみの担当者名をブロックして正常抽出
-                        if (name && !name.includes('担当者名') && !name.includes('BP平均') && isNaN(Number(name))) {
-                            const sales = parseFloat((row[7] || '0').replace(/[￥,]/g, '')) || 0;
-                            const price = parseFloat((row[8] || '0').replace(/[￥,]/g, '')) || 0;
-                            const diff = parseFloat((row[9] || '0').replace(/[￥,]/g, '')) || 0;
-                            const itemTotal = parseFloat((row[10] || '0').replace(/[￥,]/g, '')) || 0;
+                        const itemScores = [
+                            Math.round(itemTotal * 0.3),
+                            Math.round(itemTotal * 0.25),
+                            Math.round(itemTotal * 0.15),
+                            Math.round(itemTotal * 0.15),
+                            Math.round(itemTotal * 0.1),
+                            Math.round(itemTotal * 0.05)
+                        ];
 
-                            const itemScores = [
-                                Math.round(itemTotal * 0.3),
-                                Math.round(itemTotal * 0.25),
-                                Math.round(itemTotal * 0.15),
-                                Math.round(itemTotal * 0.15),
-                                Math.round(itemTotal * 0.1),
-                                Math.round(itemTotal * 0.05)
-                            ];
-
-                            rawPersonalData.push({ area, name, store, sales, price, diff, itemScores, itemTotal });
+                        rawPersonalData.push({ area, name, store, sales, price, diff, itemScores, itemTotal });
+                        if (store) {
                             storeTotalSalesMap[store] = (storeTotalSalesMap[store] || 0) + sales;
                         }
                     }
@@ -377,7 +368,7 @@
 
             const sorted = [...filtered].sort((a, b) => (b[activeSortKey] || 0) - (a[activeSortKey] || 0));
 
-            // ランキングカード構築（デザインそのまま復元）
+            // ランキングカード構築（元のデザイン完全維持）
             const container = document.getElementById('rankingContainer');
             container.innerHTML = '';
 
@@ -469,7 +460,7 @@
                 barChart.data.datasets[1].label = "全社平均";
                 barChart.data.datasets[1].data = [12, 15, 10, 11, 8, 7];
 
-                aiAdvice.innerHTML = `<strong>${crewObj.name}</strong> さんのアクセサリ売上は <strong>￥${crewObj.sales.toLocaleString()}</strong>（単価 ￥${crewObj.price.toLocaleString()}）。高単価セットの提案を継続してグループを牽引しましょう！`;
+                aiAdvice.innerHTML = `<strong>${crewObj.name}</strong> さんのアクセサリ売上は <strong>￥${crewObj.sales.toLocaleString()}</strong>（単価 ￥${crewObj.price.toLocaleString()}）。高単価セット提案を継続してグループを牽引しましょう！`;
 
             } else if (selectedStore !== 'ALL') {
                 badge.innerText = "🏪 G1位店舗 比較";
