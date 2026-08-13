@@ -27,7 +27,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">最新キャッシュクリア＆完全名寄せ同期中(v1.0.9)...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">全店舗ドロップダウン完全分離検出中(v2.0.0)...</p>
     </div>
 
     <!-- Header -->
@@ -42,7 +42,7 @@
                         アクセサリーマスター！
                     </h1>
                     <p class="text-xs text-purple-300 font-bold tracking-wide">
-                        〜SELECTIONマスターへの道⚔️〜 <span class="text-[10px] text-amber-400/80">v1.0.9</span>
+                        〜SELECTIONマスターへの道⚔️〜 <span class="text-[10px] text-amber-400/80">v2.0.0</span>
                     </p>
                 </div>
             </div>
@@ -50,7 +50,7 @@
                 <div class="text-right hidden sm:block">
                     <p class="text-xs text-slate-400">連携ステータス</p>
                     <p class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 厳密突合＆プロテクトLIVE連動中
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 全店舗完全個別リスト連動中
                     </p>
                 </div>
             </div>
@@ -181,7 +181,6 @@
     </main>
 
     <script>
-        // キャッシュ破棄用のキャッシュバスターパラメータを付与
         const ts = Date.now();
         const CSV_URLS = {
             target: `https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=0&single=true&output=csv&_cb=${ts}`,
@@ -222,11 +221,10 @@
             return res;
         }
 
-        // 余分な全半角スペースや改行文字を徹底除去する関数
         function cleanStrict(str) {
             if (!str) return '';
             let s = zenToHanKana(str.trim());
-            return s.replace(/[\s\u3000\r\n\t]/g, '').toLowerCase();
+            return s.replace(/[\s\u3000\r\n\t]/g, '');
         }
 
         let radarChart, barChart;
@@ -272,7 +270,7 @@
                 const textStore = await resStore.text();
                 const textPersonal = await resPersonal.text();
 
-                // 1. 目標タブ解析（完全文字列・厳密クリーン名両方保持）
+                // 1. 目標タブ解析（原文そのまま＋厳密クリーンキー）
                 const targetLines = textTarget.split(/\r?\n/);
                 storeTargetMap = {};
                 const idxT = col2idx('T'); // 19
@@ -357,7 +355,7 @@
                     }
                 }
 
-                // 3. 個人実績タブ解析
+                // 3. 個人実績タブ解析（★完全無加工の店舗名「座間」「イオンモール座間」をすべて個別に登録）
                 const pLines = textPersonal.split(/\r?\n/).filter(l => l.trim() !== '');
                 rawPersonalData = [];
                 storeTotalSalesMap = {};
@@ -413,7 +411,7 @@
                     companyGlobalItemAvg = globalItemSum.map(sum => Math.round((sum / rawPersonalData.length) * 10) / 10);
                 }
 
-                // 🎯 決定版：「イオンモール座間」(目標486.9万/進捗60.1%) と 「座間」(目標76.6万/進捗21.2%) の絶対完全分離判定
+                // 🎯 決定版：各店舗（座間=76.6万 / イオンモール座間=486.9万）の目標額を完全ダイレクト照合
                 rawPersonalData.forEach(item => {
                     const rawSt = item.store;
                     const cKey = cleanStrict(rawSt);
@@ -421,15 +419,8 @@
                     
                     const stCurrentSales = storeTotalSalesMap[rawSt] || (stData ? stData.sales : item.sales);
                     
-                    // 1st priority: 完全な文字そのまま（スペース等のみ除去）での一致
+                    // 完全文字列優先ヒット
                     let stTargetVal = storeTargetMap[rawSt] || storeTargetMap[cKey];
-                    
-                    // 2nd priority: どうしてもヒットしない場合のみ長文字順で慎重検索
-                    if (!stTargetVal) {
-                        const targetKeys = Object.keys(storeTargetMap).sort((a,b) => b.length - a.length);
-                        const matchK = targetKeys.find(k => k === rawSt || cleanStrict(k) === cKey);
-                        if (matchK) stTargetVal = storeTargetMap[matchK];
-                    }
 
                     if (stTargetVal && stTargetVal > 0) {
                         item.storeTargetRate = Math.round((stCurrentSales / stTargetVal) * 1000) / 10;
@@ -460,6 +451,7 @@
             }
         }
 
+        // ★改修の要：プルダウンに「座間」も「イオンモール座間」も全店舗漏れなくそのまま選択肢に追加
         function populateDropdowns() {
             const groupSelect = document.getElementById('groupSelect');
             groupSelect.innerHTML = '<option value="ALL">全エリア（全社）</option>';
@@ -487,6 +479,7 @@
             let filtered = rawPersonalData;
             if (area !== 'ALL') filtered = filtered.filter(d => d.area === area);
 
+            // ★完全文字列ままセットで全店舗重複なくドロップダウンへ
             const stores = [...new Set(filtered.map(d => d.store).filter(Boolean))];
             const storeSelect = document.getElementById('storeSelect');
             storeSelect.innerHTML = '<option value="ALL">全店舗</option>';
