@@ -27,7 +27,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">全角半角カナ全自動突合 ＆ 達成率完全同期中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">類似店舗(座間/イオンモール座間)精密分離中...</p>
     </div>
 
     <!-- Header -->
@@ -50,7 +50,7 @@
                 <div class="text-right hidden sm:block">
                     <p class="text-xs text-slate-400">連携ステータス</p>
                     <p class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 全角半角カナ補正LIVE連動中
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 類似店舗完全独立判定LIVE連動中
                     </p>
                 </div>
             </div>
@@ -210,7 +210,6 @@
             return idx - 1;
         }
 
-        // 全角カナを半角カナに変換するマップ関数（名寄せの要）
         function zenToHanKana(str) {
             const zen = ['ア','イ','ウ','エ','オ','カ','キ','ク','ケ','コ','サ','シ','ス','セ','ソ','タ','チ','ツ','テ','ト','ナ','ニ','ヌ','ネ','ノ','ハ','ヒ','フ','ヘ','ホ','マ','ミ','ム','メ','モ','ヤ','ユ','ヨ','ラ','リ','ル','レ','ロ','ワ','ヲ','ン','ガ','ギ','グ','ゲ','ゴ','ザ','ジ','ズ','ゼ','ゾ','ダ','ヂ','ヅ','デ','ド','バ','ビ','ブ','ベ','ボ','パ','ピ','プ','ペ','ポ','ァ','ィ','ゥ','ェ','ォ','ッ','ャ','ュ','ョ','ー','・'];
             const han = ['ｱ','ｲ','ｳ','ｴ','ｵ','ｶ','ｷ','ｸ','ｹ','ｺ','ｻ','ｼ','ｽ','ｾ','ｿ','ﾀ','ﾁ','ﾂ','ﾃ','ﾄ','ﾅ','ﾆ','ﾇ','ﾈ','ﾉ','ﾊ','ﾋ','ﾌ','ﾍ','ﾎ','ﾏ','ﾐ','ﾑ','ﾒ','ﾓ','ﾔ','ﾕ','ﾖ','ﾗ','ﾘ','ﾙ','ﾚ','ﾛ','ﾜ','ｦ','ﾝ','ｶﾞ','ｷﾞ','ｸﾞ','ｹﾞ','ｺﾞ','ｻﾞ','ｼﾞ','ｽﾞ','ｾﾞ','ｿﾞ','ﾀﾞ','ﾁﾞ','ﾂﾞ','ﾃﾞ','ﾄﾞ','ﾊﾞ','ﾋﾞ','ﾌﾞ','ﾍﾞ','ﾎﾞ','ﾊﾟ','ﾋﾟ','ﾌﾟ','ﾍﾟ','ﾎﾟ','ｱ','ｲ','ｳ','ｴ','ｵ','ﾂ','ﾔ','ﾕ','ﾖ','-',''];
@@ -221,11 +220,11 @@
             return res;
         }
 
-        // 全角半角・記号の差異を完全に除去して突合用キーを作成
-        function cleanName(str) {
+        // 「座間」と「イオンモール座間」を絶対に混同しない精密キー作成関数
+        function cleanNameStrict(str) {
             if (!str) return '';
             let s = zenToHanKana(str);
-            return s.replace(/ｿﾌﾄﾊﾞﾝｸ|SB|店舗|店|中央|［|］|\[|\]|\s+|　/gi, '').toLowerCase().trim();
+            return s.replace(/ｿﾌﾄﾊﾞﾝｸ|SB|店舗|店|［|］|\[|\]|\s+|　/gi, '').toLowerCase().trim();
         }
 
         let radarChart, barChart;
@@ -271,7 +270,7 @@
                 const textStore = await resStore.text();
                 const textPersonal = await resPersonal.text();
 
-                // 1. 目標タブ解析（全角カナも半角補正して100%抽出）
+                // 1. 目標タブ解析（完全一致優先で「座間」と「イオンモール座間」を完全分離）
                 const targetLines = textTarget.split(/\r?\n/);
                 storeTargetMap = {};
                 const idxT = col2idx('T'); // 19
@@ -281,16 +280,16 @@
                     if (row.length > 1) {
                         for (let c = 0; c < Math.min(row.length, 6); c++) {
                             const rawStoreName = row[c] ? row[c].trim() : '';
-                            const cleanKey = cleanName(rawStoreName);
+                            const cleanKey = cleanNameStrict(rawStoreName);
 
                             if (rawStoreName && cleanKey.length >= 2 && !cleanKey.includes('目標') && !cleanKey.includes('合計')) {
                                 let targetVal = 0;
 
-                                const validNums = row.map(v => parseNum(v)).filter(n => n >= 300000);
-                                if (validNums.length > 0) {
-                                    targetVal = Math.max(...validNums);
-                                } else if (row.length > idxT && parseNum(row[idxT]) > 100000) {
+                                if (row.length > idxT && parseNum(row[idxT]) > 100000) {
                                     targetVal = parseNum(row[idxT]);
+                                } else {
+                                    const validNums = row.map(v => parseNum(v)).filter(n => n >= 300000);
+                                    if (validNums.length > 0) targetVal = validNums[0];
                                 }
 
                                 if (targetVal > 0) {
@@ -323,7 +322,7 @@
                     const row = parseCSVLine(storeLines[i]);
                     if (row.length > 5) {
                         const stName = row[idxStoreName] ? row[idxStoreName].trim() : (row[1] || row[0] || '');
-                        const cleanStKey = cleanName(stName);
+                        const cleanStKey = cleanNameStrict(stName);
                         
                         if (stName && !stName.includes('店舗名') && !stName.includes('部門名')) {
                             const cp = parseNum(row[idxCP]);
@@ -412,25 +411,26 @@
                     companyGlobalItemAvg = globalItemSum.map(sum => Math.round((sum / rawPersonalData.length) * 10) / 10);
                 }
 
-                // 🎯 決定版：全角半角キーで目標数値を100%マッチングして達成率を完全統一算出
+                // 🎯 決定版：イオンモール座間 と 座間 を厳密に区別して個別の目標額をヒットさせる
                 rawPersonalData.forEach(item => {
-                    const cKey = cleanName(item.store);
+                    const cKey = cleanNameStrict(item.store);
                     const stData = storeTabMetricsMap[item.store] || storeTabMetricsMap[cKey];
                     
                     const stCurrentSales = (stData && stData.sales > 0) ? stData.sales : (storeTotalSalesMap[item.store] || item.sales);
                     
-                    let stTargetVal = storeTargetMap[cKey] || storeTargetMap[item.store];
+                    // 1st: 完全一致検索（イオンモール座間）
+                    let stTargetVal = storeTargetMap[item.store] || storeTargetMap[cKey];
+                    
+                    // 2nd: 完全一致で見つからない場合のみ、厳密な長文字マッチング
                     if (!stTargetVal) {
-                        const foundK = Object.keys(storeTargetMap).find(k => k.includes(cKey) || cKey.includes(k));
+                        const keys = Object.keys(storeTargetMap).sort((a,b) => b.length - a.length);
+                        const foundK = keys.find(k => k === cKey || (k.length > 3 && cKey.includes(k)));
                         if (foundK) stTargetVal = storeTargetMap[foundK];
                     }
 
                     if (stTargetVal && stTargetVal > 0) {
                         item.storeTargetRate = Math.round((stCurrentSales / stTargetVal) * 100);
                         item.storeContributionRate = Math.round((item.sales / stTargetVal) * 100);
-                    } else if (stCurrentSales > 0) {
-                        item.storeTargetRate = Math.round((stCurrentSales / 1800000) * 100);
-                        item.storeContributionRate = Math.round((item.sales / stCurrentSales) * 100);
                     } else {
                         item.storeTargetRate = 0;
                         item.storeContributionRate = 0;
@@ -618,7 +618,7 @@
             let totalSales = sorted.reduce((acc, cur) => acc + cur.sales, 0);
             let avgPrice = sorted.length ? Math.round(sorted.reduce((acc, cur) => acc + cur.price, 0) / sorted.length) : 0;
 
-            const cKeySelected = cleanName(store);
+            const cKeySelected = cleanNameStrict(store);
             const stData = storeTabMetricsMap[store] || storeTabMetricsMap[cKeySelected];
 
             if (store !== 'ALL' && stData) {
@@ -664,7 +664,7 @@
                 radarSub.innerText = `選択店舗: ${selectedStore}`;
                 barSub.innerText = `${selectedStore} のSELECTION販売率 (%)`;
 
-                const cKeySt = cleanName(selectedStore);
+                const cKeySt = cleanNameStrict(selectedStore);
                 const storeMetrics = storeTabMetricsMap[selectedStore] || storeTabMetricsMap[cKeySt];
 
                 if (storeMetrics && storeMetrics.rates && storeMetrics.denom > 0) {
@@ -681,7 +681,7 @@
                 const topStoreName = Object.keys(storeGroupSales).sort((a,b) => storeGroupSales[b] - storeGroupSales[a])[0] || selectedStore;
                 const topStoreCrew = rawPersonalData.filter(d => d.store === topStoreName);
 
-                const cKeyTop = cleanName(topStoreName);
+                const cKeyTop = cleanNameStrict(topStoreName);
                 const topMetrics = storeTabMetricsMap[topStoreName] || storeTabMetricsMap[cKeyTop];
                 if (topMetrics && topMetrics.rates && topMetrics.denom > 0) {
                     targetScores = topMetrics.rates;
