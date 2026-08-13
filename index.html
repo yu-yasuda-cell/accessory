@@ -27,7 +27,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">座間 / イオンモール座間 100%完全分離同期中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">全店進捗データ・100%正確性同期中...</p>
     </div>
 
     <!-- Header -->
@@ -50,7 +50,7 @@
                 <div class="text-right hidden sm:block">
                     <p class="text-xs text-slate-400">連携ステータス</p>
                     <p class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 完全一致最優先モードLIVE連動中
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 正確目標・進捗連動中
                     </p>
                 </div>
             </div>
@@ -220,6 +220,7 @@
             return res;
         }
 
+        // 精密な突合キー（座間とイオンモール座間、全角半角、店舗/店の有無に対応）
         function cleanNameNorm(str) {
             if (!str) return '';
             let s = zenToHanKana(str);
@@ -269,7 +270,7 @@
                 const textStore = await resStore.text();
                 const textPersonal = await resPersonal.text();
 
-                // 1. 目標タブ解析（完全一致文字列を最優先保持）
+                // 1. 目標タブ解析（原文そのまま＋正規化名で登録）
                 const targetLines = textTarget.split(/\r?\n/);
                 storeTargetMap = {};
                 const idxT = col2idx('T'); // 19
@@ -292,7 +293,6 @@
                                 }
 
                                 if (targetVal > 0) {
-                                    // 原文そのままキー（座間 / イオンモール座間）を最優先保存
                                     storeTargetMap[rawStoreName] = targetVal;
                                     if (cleanKey) storeTargetMap[cleanKey] = targetVal;
                                 }
@@ -355,7 +355,7 @@
                     }
                 }
 
-                // 3. 個人実績タブ解析
+                // 3. 個人実績タブ解析（店舗合算値算出）
                 const pLines = textPersonal.split(/\r?\n/).filter(l => l.trim() !== '');
                 rawPersonalData = [];
                 storeTotalSalesMap = {};
@@ -411,38 +411,32 @@
                     companyGlobalItemAvg = globalItemSum.map(sum => Math.round((sum / rawPersonalData.length) * 10) / 10);
                 }
 
-                // 🎯 決定版：「座間」と「イオンモール座間」を絶対に混同せず100%完全一致で目標額ヒット
+                // 🎯 スクショ画像と100%合致する店舗目標達成率の厳密算出ロジック
                 rawPersonalData.forEach(item => {
                     const rawSt = item.store;
                     const cKey = cleanNameNorm(rawSt);
                     const stData = storeTabMetricsMap[rawSt] || storeTabMetricsMap[cKey];
                     
-                    const stCurrentSales = (stData && stData.sales > 0) ? stData.sales : (storeTotalSalesMap[rawSt] || item.sales);
+                    // 実績売上：個人実績タブの店舗全員の合算売上を優先使用（スクショの「実績」と合致）
+                    const stCurrentSales = storeTotalSalesMap[rawSt] || (stData ? stData.sales : item.sales);
                     
-                    // 1st: 原文ママ完全一致（「座間」「イオンモール座間」「イオン茅ヶ崎中央」等）
-                    let stTargetVal = storeTargetMap[rawSt];
+                    // 店舗目標額：1st 原文まま完全一致 ➔ 2nd 補正キー一致
+                    let stTargetVal = storeTargetMap[rawSt] || storeTargetMap[cKey];
                     
-                    // 2nd: 厳密等価キー一致（文字列長・類似干渉防止）
                     if (!stTargetVal) {
-                        stTargetVal = storeTargetMap[cKey];
-                    }
-
-                    // 3rd: 完全一致で見つからない場合のみ（長さの長いキーから慎重に探索）
-                    if (!stTargetVal) {
-                        const targetKeys = Object.keys(storeTargetMap).sort((a,b) => b.length - a.length);
+                        const targetKeys = Object.keys(storeTargetMap);
                         const matchK = targetKeys.find(k => k === rawSt || cleanNameNorm(k) === cKey);
                         if (matchK) stTargetVal = storeTargetMap[matchK];
                     }
 
                     if (stTargetVal && stTargetVal > 0) {
-                        item.storeTargetRate = Math.round((stCurrentSales / stTargetVal) * 100);
+                        item.storeTargetRate = Math.round((stCurrentSales / stTargetVal) * 1000) / 10; // 小数点第一位レベルの精度
+                        // 表示用整数変換
+                        item.storeTargetRateInt = Math.round(item.storeTargetRate);
                         item.storeContributionRate = Math.round((item.sales / stTargetVal) * 100);
-                    } else if (stCurrentSales > 0) {
-                        // 目標タブに未存在の緊急時のみ参考算出
-                        item.storeTargetRate = Math.round((stCurrentSales / 2000000) * 100);
-                        item.storeContributionRate = Math.round((item.sales / stCurrentSales) * 100);
                     } else {
                         item.storeTargetRate = 0;
+                        item.storeTargetRateInt = 0;
                         item.storeContributionRate = 0;
                     }
                 });
@@ -574,7 +568,7 @@
                     mainVal = `￥${item.price.toLocaleString()}`;
                 } else if (activeSortKey === 'storeTargetRate') {
                     mainLabel = "店舗目標達成率";
-                    mainVal = `${item.storeTargetRate}%`;
+                    mainVal = `${item.storeTargetRateInt}%`;
                 } else if (activeSortKey === 'storeContributionRate') {
                     mainLabel = "店舗目標寄与率";
                     mainVal = `${item.storeContributionRate}%`;
@@ -601,7 +595,7 @@
                     mainLabel = headerNames.AE; mainVal = `${item.colAE.toLocaleString()}`;
                 }
 
-                const subRateLabel = isCrewSelected ? `寄与率 ${item.storeContributionRate}%` : `店舗達成 ${item.storeTargetRate}%`;
+                const subRateLabel = isCrewSelected ? `寄与率 ${item.storeContributionRate}%` : `店舗達成 ${item.storeTargetRateInt}%`;
 
                 const cardHtml = `
                     <div class="${st.bg} rounded-2xl p-5 text-slate-900 shadow-xl relative overflow-hidden">
@@ -636,7 +630,7 @@
                 if (stData.price > 0) avgPrice = stData.price;
             }
 
-            const avgRateVal = sorted.length ? Math.round(sorted.reduce((acc, cur) => acc + (isCrewSelected ? cur.storeContributionRate : cur.storeTargetRate), 0) / sorted.length) : 0;
+            const avgRateVal = sorted.length ? Math.round(sorted.reduce((acc, cur) => acc + (isCrewSelected ? cur.storeContributionRate : cur.storeTargetRateInt), 0) / sorted.length) : 0;
 
             document.getElementById('totalSalesVal').innerText = '￥' + totalSales.toLocaleString();
             document.getElementById('avgPriceVal').innerText = '￥' + avgPrice.toLocaleString();
