@@ -27,7 +27,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">目標バグ完全治療 ＆ データ解析中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">最新キャッシュクリア＆完全名寄せ同期中(v1.0.9)...</p>
     </div>
 
     <!-- Header -->
@@ -42,7 +42,7 @@
                         アクセサリーマスター！
                     </h1>
                     <p class="text-xs text-purple-300 font-bold tracking-wide">
-                        〜SELECTIONマスターへの道⚔️〜
+                        〜SELECTIONマスターへの道⚔️〜 <span class="text-[10px] text-amber-400/80">v1.0.9</span>
                     </p>
                 </div>
             </div>
@@ -50,7 +50,7 @@
                 <div class="text-right hidden sm:block">
                     <p class="text-xs text-slate-400">連携ステータス</p>
                     <p class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 上書きバグ完全排除LIVE連動中
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 厳密突合＆プロテクトLIVE連動中
                     </p>
                 </div>
             </div>
@@ -181,11 +181,13 @@
     </main>
 
     <script>
+        // キャッシュ破棄用のキャッシュバスターパラメータを付与
+        const ts = Date.now();
         const CSV_URLS = {
-            target: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=0&single=true&output=csv",
-            store: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=21976197&single=true&output=csv",
-            qv: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=1867085840&single=true&output=csv",
-            personal: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=288066209&single=true&output=csv"
+            target: `https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=0&single=true&output=csv&_cb=${ts}`,
+            store: `https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=21976197&single=true&output=csv&_cb=${ts}`,
+            qv: `https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=1867085840&single=true&output=csv&_cb=${ts}`,
+            personal: `https://docs.google.com/spreadsheets/d/e/2PACX-1vQmGVxoipW4IZFlXB9PZE1OAbclnDw-o_7d8jU2M8U6hIjo5JesdQWlDrgvf7zye1sHYxiXDWfcMuVT/pub?gid=288066209&single=true&output=csv&_cb=${ts}`
         };
 
         let rawPersonalData = [];
@@ -220,10 +222,11 @@
             return res;
         }
 
-        function cleanNameNorm(str) {
+        // 余分な全半角スペースや改行文字を徹底除去する関数
+        function cleanStrict(str) {
             if (!str) return '';
-            let s = zenToHanKana(str);
-            return s.replace(/ｿﾌﾄﾊﾞﾝｸ|SB|店舗|店|［|］|\[|\]|\s+|　/gi, '').toLowerCase().trim();
+            let s = zenToHanKana(str.trim());
+            return s.replace(/[\s\u3000\r\n\t]/g, '').toLowerCase();
         }
 
         let radarChart, barChart;
@@ -269,7 +272,7 @@
                 const textStore = await resStore.text();
                 const textPersonal = await resPersonal.text();
 
-                // 1. 目標タブ解析（★完全文字列のみで1対1マッピング！上書き不具合を根絶）
+                // 1. 目標タブ解析（完全文字列・厳密クリーン名両方保持）
                 const targetLines = textTarget.split(/\r?\n/);
                 storeTargetMap = {};
                 const idxT = col2idx('T'); // 19
@@ -291,14 +294,9 @@
                                 }
 
                                 if (targetVal > 0) {
-                                    // 徹底原則：そのままの文字列を完全プライマリキーとしてセット！
+                                    const cKey = cleanStrict(rawStoreName);
                                     storeTargetMap[rawStoreName] = targetVal;
-                                    
-                                    // 半角全角差分対応の補助キー（既存の完全キーを壊さない時のみ）
-                                    const cKey = cleanNameNorm(rawStoreName);
-                                    if (cKey && !storeTargetMap[cKey]) {
-                                        storeTargetMap[cKey] = targetVal;
-                                    }
+                                    storeTargetMap[cKey] = targetVal;
                                 }
                             }
                         }
@@ -326,7 +324,7 @@
                     const row = parseCSVLine(storeLines[i]);
                     if (row.length > 5) {
                         const stName = row[idxStoreName] ? row[idxStoreName].trim() : (row[1] || row[0] || '');
-                        const cleanStKey = cleanNameNorm(stName);
+                        const cleanStKey = cleanStrict(stName);
                         
                         if (stName && !stName.includes('店舗名') && !stName.includes('部門名')) {
                             const cp = parseNum(row[idxCP]);
@@ -415,26 +413,21 @@
                     companyGlobalItemAvg = globalItemSum.map(sum => Math.round((sum / rawPersonalData.length) * 10) / 10);
                 }
 
-                // 🎯 決定版：「完全文字列一致」で目標額を引き出す（座間=76.6万 / イオンモール座間=486.9万）
+                // 🎯 決定版：「イオンモール座間」(目標486.9万/進捗60.1%) と 「座間」(目標76.6万/進捗21.2%) の絶対完全分離判定
                 rawPersonalData.forEach(item => {
                     const rawSt = item.store;
-                    const cKey = cleanNameNorm(rawSt);
+                    const cKey = cleanStrict(rawSt);
                     const stData = storeTabMetricsMap[rawSt] || storeTabMetricsMap[cKey];
                     
                     const stCurrentSales = storeTotalSalesMap[rawSt] || (stData ? stData.sales : item.sales);
                     
-                    // 1st priority: そのままの文字列完全一致（絶対判定）
-                    let stTargetVal = storeTargetMap[rawSt];
+                    // 1st priority: 完全な文字そのまま（スペース等のみ除去）での一致
+                    let stTargetVal = storeTargetMap[rawSt] || storeTargetMap[cKey];
                     
-                    // 2nd priority: 完全一致がない場合のみ、正規化キー一致
-                    if (!stTargetVal) {
-                        stTargetVal = storeTargetMap[cKey];
-                    }
-
-                    // 3rd priority: それでもない場合、長文字列から慎重判定（座間への誤ヒットを防止）
+                    // 2nd priority: どうしてもヒットしない場合のみ長文字順で慎重検索
                     if (!stTargetVal) {
                         const targetKeys = Object.keys(storeTargetMap).sort((a,b) => b.length - a.length);
-                        const matchK = targetKeys.find(k => k === rawSt || cleanNameNorm(k) === cKey);
+                        const matchK = targetKeys.find(k => k === rawSt || cleanStrict(k) === cKey);
                         if (matchK) stTargetVal = storeTargetMap[matchK];
                     }
 
@@ -636,7 +629,7 @@
             let totalSales = sorted.reduce((acc, cur) => acc + cur.sales, 0);
             let avgPrice = sorted.length ? Math.round(sorted.reduce((acc, cur) => acc + cur.price, 0) / sorted.length) : 0;
 
-            const cKeySelected = cleanNameNorm(store);
+            const cKeySelected = cleanStrict(store);
             const stData = storeTabMetricsMap[store] || storeTabMetricsMap[cKeySelected];
 
             if (store !== 'ALL' && stData) {
@@ -682,7 +675,7 @@
                 radarSub.innerText = `選択店舗: ${selectedStore}`;
                 barSub.innerText = `${selectedStore} のSELECTION販売率 (%)`;
 
-                const cKeySt = cleanNameNorm(selectedStore);
+                const cKeySt = cleanStrict(selectedStore);
                 const storeMetrics = storeTabMetricsMap[selectedStore] || storeTabMetricsMap[cKeySt];
 
                 if (storeMetrics && storeMetrics.rates && storeMetrics.denom > 0) {
@@ -699,7 +692,7 @@
                 const topStoreName = Object.keys(storeGroupSales).sort((a,b) => storeGroupSales[b] - storeGroupSales[a])[0] || selectedStore;
                 const topStoreCrew = rawPersonalData.filter(d => d.store === topStoreName);
 
-                const cKeyTop = cleanNameNorm(topStoreName);
+                const cKeyTop = cleanStrict(topStoreName);
                 const topMetrics = storeTabMetricsMap[topStoreName] || storeTabMetricsMap[cKeyTop];
                 if (topMetrics && topMetrics.rates && topMetrics.denom > 0) {
                     targetScores = topMetrics.rates;
