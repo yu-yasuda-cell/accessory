@@ -27,7 +27,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">座間/イオンモール座間 上書き防止プロテクト適用中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">店舗名完全一致プロテクト＆実数値解析中...</p>
     </div>
 
     <!-- Header -->
@@ -50,7 +50,7 @@
                 <div class="text-right hidden sm:block">
                     <p class="text-xs text-slate-400">連携ステータス</p>
                     <p class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 完全独立店舗プロテクトLIVE連動中
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 完全分離・厳密判定LIVE連動中
                     </p>
                 </div>
             </div>
@@ -269,7 +269,7 @@
                 const textStore = await resStore.text();
                 const textPersonal = await resPersonal.text();
 
-                // 1. 目標タブ解析（完全文字列を最優先保持）
+                // 1. 目標タブ解析（完全文字列最優先、上書き防止）
                 const targetLines = textTarget.split(/\r?\n/);
                 storeTargetMap = {};
                 const idxT = col2idx('T'); // 19
@@ -279,7 +279,6 @@
                     if (row.length > 1) {
                         for (let c = 0; c < Math.min(row.length, 6); c++) {
                             const rawStoreName = row[c] ? row[c].trim() : '';
-                            const cleanKey = cleanNameNorm(rawStoreName);
 
                             if (rawStoreName && !rawStoreName.includes('目標') && !rawStoreName.includes('合計')) {
                                 let targetVal = 0;
@@ -292,11 +291,13 @@
                                 }
 
                                 if (targetVal > 0) {
-                                    // 原文ままの完全な店舗名を最優先登録
+                                    // 原文文字列を絶対キーとして格納
                                     storeTargetMap[rawStoreName] = targetVal;
-                                    // 競合・上書き防止：cleanKeyは座間等の類似店舗で別店舗を破壊しない場合のみセット
-                                    if (cleanKey && (!storeTargetMap[cleanKey] || cleanKey === rawStoreName.toLowerCase())) {
-                                        storeTargetMap[cleanKey] = targetVal;
+                                    
+                                    // 補助として正規化キーも（既存のキーを破壊しないように保存）
+                                    const cKey = cleanNameNorm(rawStoreName);
+                                    if (cKey && !storeTargetMap[cKey]) {
+                                        storeTargetMap[cKey] = targetVal;
                                     }
                                 }
                             }
@@ -414,7 +415,7 @@
                     companyGlobalItemAvg = globalItemSum.map(sum => Math.round((sum / rawPersonalData.length) * 10) / 10);
                 }
 
-                // 🎯 「座間」(766,400円) と 「イオンモール座間」(4,869,200円) の混同・上書き事故を完全プロテクト
+                // 🎯 決定版：「座間」と「イオンモール座間」を絶対に混同せず完璧に分離算出
                 rawPersonalData.forEach(item => {
                     const rawSt = item.store;
                     const cKey = cleanNameNorm(rawSt);
@@ -422,10 +423,10 @@
                     
                     const stCurrentSales = storeTotalSalesMap[rawSt] || (stData ? stData.sales : item.sales);
                     
-                    // 1st priority: 完全文字列によるダイレクト検索
+                    // 1st priority: 完全文字列によるダイレクト検索（座間 ➔ 766,400円、イオンモール座間 ➔ 4,869,200円）
                     let stTargetVal = storeTargetMap[rawSt];
                     
-                    // 2nd priority: 完全一致が見つからない場合のみ（長文字列から優先判定）
+                    // 2nd priority: 完全一致が見つからない場合（長文字列優先で短文字列の部分誤ヒットを物理プロテクト）
                     if (!stTargetVal) {
                         const targetKeys = Object.keys(storeTargetMap).sort((a,b) => b.length - a.length);
                         const matchK = targetKeys.find(k => k === rawSt || cleanNameNorm(k) === cKey);
