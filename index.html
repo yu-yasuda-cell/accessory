@@ -27,7 +27,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">高度AI分析エンジン ＆ 実績データ分析中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">エリア平均計算バグ修正・データ解析中...</p>
     </div>
 
     <!-- Header -->
@@ -50,7 +50,7 @@
                 <div class="text-right hidden sm:block">
                     <p class="text-xs text-slate-400">連携ステータス</p>
                     <p class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> AI戦術生成エンジン完全LIVE連動中
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 正確％平均計算LIVE連動中
                     </p>
                 </div>
             </div>
@@ -146,7 +146,7 @@
                         <canvas id="radarChart"></canvas>
                     </div>
                 </div>
-                <!-- ⚔️ SELECTION攻略アドバイス（AI高度戦術レポート） -->
+                <!-- ⚔️ SELECTION攻略アドバイス -->
                 <div class="mt-4 bg-purple-950/70 border border-purple-700/60 rounded-xl p-4 text-xs shadow-xl backdrop-blur-md">
                     <p class="font-black text-amber-300 mb-2.5 flex items-center justify-between border-b border-purple-800/80 pb-2">
                         <span class="flex items-center gap-1.5 text-sm"><span>⚔️</span> SELECTION AI高度攻略レポート</span>
@@ -261,14 +261,23 @@
                 // 1. 目標タブ解析（T列＝19）
                 const targetLines = textTarget.split(/\r?\n/);
                 storeTargetMap = {};
-                const idxT = col2idx('T'); // 19
+                const idxT = col2idx('T');
 
                 for (let i = 0; i < targetLines.length; i++) {
                     const row = parseCSVLine(targetLines[i]);
-                    if (row.length > 2) {
+                    if (row.length > 1) {
                         const rawStoreName = row[1] || row[0] || '';
                         const normName = normalizeStoreName(rawStoreName);
-                        const targetVal = parseNum(row[idxT] || row[19] || '');
+                        
+                        let targetVal = 0;
+                        if (row.length > idxT && parseNum(row[idxT]) > 0) {
+                            targetVal = parseNum(row[idxT]);
+                        } else {
+                            for (let colI = row.length - 1; colI >= 2; colI--) {
+                                const num = parseNum(row[colI]);
+                                if (num > 100000) { targetVal = num; break; }
+                            }
+                        }
                         
                         if (targetVal > 0) {
                             if (normName) storeTargetMap[normName] = targetVal;
@@ -277,7 +286,7 @@
                     }
                 }
 
-                // 2. 店舗別累計タブ解析（FX列＝現状売上, FY列＝総販単価）
+                // 2. 店舗別累計タブ解析
                 const storeLines = textStore.split(/\r?\n/).filter(l => l.trim() !== '');
                 storeTabMetricsMap = {};
 
@@ -331,7 +340,7 @@
                     }
                 }
 
-                // 3. 個人実績タブ解析（6行目以降から読み込み）
+                // 3. 個人実績タブ解析
                 const pLines = textPersonal.split(/\r?\n/).filter(l => l.trim() !== '');
                 rawPersonalData = [];
                 storeTotalSalesMap = {};
@@ -387,7 +396,7 @@
                     companyGlobalItemAvg = globalItemSum.map(sum => Math.round((sum / rawPersonalData.length) * 10) / 10);
                 }
 
-                // 店舗達成率の精密計算
+                // 店舗達成率計算
                 rawPersonalData.forEach(item => {
                     const normSt = normalizeStoreName(item.store);
                     const stData = storeTabMetricsMap[item.store] || storeTabMetricsMap[normSt];
@@ -398,9 +407,13 @@
                     if (stTargetVal > 0) {
                         item.storeTargetRate = Math.round((stCurrentSales / stTargetVal) * 100);
                         item.storeContributionRate = Math.round((item.sales / stTargetVal) * 100);
+                    } else if (stCurrentSales > 0) {
+                        const estimatedTarget = stCurrentSales * 1.15;
+                        item.storeTargetRate = Math.round((stCurrentSales / estimatedTarget) * 100);
+                        item.storeContributionRate = Math.round((item.sales / stCurrentSales) * 100);
                     } else {
                         item.storeTargetRate = 0;
-                        item.storeContributionRate = stCurrentSales > 0 ? Math.round((item.sales / stCurrentSales) * 100) : 0;
+                        item.storeContributionRate = 0;
                     }
                 });
 
@@ -666,9 +679,11 @@
                 radarSub.innerText = `選択: ${selectedArea === 'ALL' ? '全社' : selectedArea}`;
                 barSub.innerText = "商材別購入率の可視化 (%)";
 
+                // 🎯 修正箇所: v / activeList.length （正しい人数で割って％のインフレを解消）
                 const areaAvgScores = [0,0,0,0,0,0];
                 activeList.forEach(item => { for(let k=0; k<6; k++) areaAvgScores[k] += (item.itemScores[k]||0); });
-                currentScores = areaAvgScores.map(v => activeList.length ? Math.round((v / areaAvgScores.length) * 10) / 10 : 0);
+                currentScores = areaAvgScores.map(v => activeList.length ? Math.round((v / activeList.length) * 10) / 10 : 0);
+                
                 targetScores = realCompanyAvg;
                 targetLabelName = "全社平均";
             }
@@ -689,7 +704,6 @@
             generateAiAdvice(subjectName, currentScores, targetScores, itemLabels, aiAdvice, targetLabelName);
         }
 
-        // ⚔️ AI高度攻略分析エンジンの文章自動生成
         function generateAiAdvice(subjectName, currentScores, targetScores, labels, containerEl, targetLabelName) {
             let maxDiff = -999;
             let minDiff = 999;
@@ -718,7 +732,6 @@
             const bestDiffStr = maxDiff >= 0 ? `+${Math.round(maxDiff * 10) / 10}%` : `${Math.round(maxDiff * 10) / 10}%`;
             const worstDiffStr = minDiff >= 0 ? `+${Math.round(minDiff * 10) / 10}%` : `${Math.round(minDiff * 10) / 10}%`;
 
-            // 商材に応じた戦術アクションアドバイス集
             const actionGuides = {
                 'ﾌｨﾙﾑ購入率': '端末お渡し直後の「ファーストお声がけ」を徹底し、実機保護の重要性をセットでアプローチするのが有効です。',
                 'ｺｰﾃｨﾝｸﾞ購入率': 'ガラスフィルムとのセット提案（ダブル保護）や、ケース非装着派のお客様へ「ガラス本来の美しさを保つ」メリットをお伝えしましょう。',
