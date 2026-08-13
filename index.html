@@ -27,7 +27,7 @@
     <!-- Loading Indicator -->
     <div id="loading" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex flex-col items-center justify-center space-y-4">
         <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">目標判定プロテクト＆リアルタイム数値同期中...</p>
+        <p class="text-amber-300 font-bold text-sm tracking-widest animate-pulse">座間/イオンモール座間 上書き防止プロテクト適用中...</p>
     </div>
 
     <!-- Header -->
@@ -50,7 +50,7 @@
                 <div class="text-right hidden sm:block">
                     <p class="text-xs text-slate-400">連携ステータス</p>
                     <p class="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 達成率厳密算定LIVE連動中
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> 完全独立店舗プロテクトLIVE連動中
                     </p>
                 </div>
             </div>
@@ -269,10 +269,10 @@
                 const textStore = await resStore.text();
                 const textPersonal = await resPersonal.text();
 
-                // 1. 目標タブ解析
+                // 1. 目標タブ解析（完全文字列を最優先保持）
                 const targetLines = textTarget.split(/\r?\n/);
                 storeTargetMap = {};
-                const idxT = col2idx('T');
+                const idxT = col2idx('T'); // 19
 
                 for (let i = 0; i < targetLines.length; i++) {
                     const row = parseCSVLine(targetLines[i]);
@@ -292,8 +292,12 @@
                                 }
 
                                 if (targetVal > 0) {
+                                    // 原文ままの完全な店舗名を最優先登録
                                     storeTargetMap[rawStoreName] = targetVal;
-                                    if (cleanKey) storeTargetMap[cleanKey] = targetVal;
+                                    // 競合・上書き防止：cleanKeyは座間等の類似店舗で別店舗を破壊しない場合のみセット
+                                    if (cleanKey && (!storeTargetMap[cleanKey] || cleanKey === rawStoreName.toLowerCase())) {
+                                        storeTargetMap[cleanKey] = targetVal;
+                                    }
                                 }
                             }
                         }
@@ -410,7 +414,7 @@
                     companyGlobalItemAvg = globalItemSum.map(sum => Math.round((sum / rawPersonalData.length) * 10) / 10);
                 }
 
-                // 🎯 決定版：どんなルートでも storeTargetRateInt を100%確定生成
+                // 🎯 「座間」(766,400円) と 「イオンモール座間」(4,869,200円) の混同・上書き事故を完全プロテクト
                 rawPersonalData.forEach(item => {
                     const rawSt = item.store;
                     const cKey = cleanNameNorm(rawSt);
@@ -418,10 +422,12 @@
                     
                     const stCurrentSales = storeTotalSalesMap[rawSt] || (stData ? stData.sales : item.sales);
                     
-                    let stTargetVal = storeTargetMap[rawSt] || storeTargetMap[cKey];
+                    // 1st priority: 完全文字列によるダイレクト検索
+                    let stTargetVal = storeTargetMap[rawSt];
                     
+                    // 2nd priority: 完全一致が見つからない場合のみ（長文字列から優先判定）
                     if (!stTargetVal) {
-                        const targetKeys = Object.keys(storeTargetMap);
+                        const targetKeys = Object.keys(storeTargetMap).sort((a,b) => b.length - a.length);
                         const matchK = targetKeys.find(k => k === rawSt || cleanNameNorm(k) === cKey);
                         if (matchK) stTargetVal = storeTargetMap[matchK];
                     }
